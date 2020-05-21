@@ -12,6 +12,7 @@ walkdir = "2"
 toml = "*"
 serde = "*"
 serde_derive = "*"
+rayon = "*"
 
 [dev-dependencies]
 criterion = "0.3"
