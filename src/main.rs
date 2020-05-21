@@ -1,8 +1,6 @@
 use sqlparser::dialect::AnsiDialect;
 use sqlparser::parser::Parser;
 use std::fs;
-use std::fs::File;
-use std::io::prelude::*;
 use walkdir::{Error, WalkDir};
 
 use serde_derive::Deserialize;
