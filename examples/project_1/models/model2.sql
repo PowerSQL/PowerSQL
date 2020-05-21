@@ -1,2 +1,2 @@
-select a, b
-from @model
+SELECT a, b
+FROM @model

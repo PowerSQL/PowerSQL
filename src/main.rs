@@ -1,6 +1,7 @@
 use rayon::prelude::*;
-use sqlparser::dialect::AnsiDialect;
+use sqlparser::ast::Statement;
 use sqlparser::parser::Parser;
+use std::collections::HashMap;
 use std::fs;
 use walkdir::{Error, WalkDir};
 
@@ -26,7 +27,7 @@ impl sqlparser::dialect::Dialect for PowerSqlDialect {
     }
 
     fn is_identifier_part(&self, ch: char) -> bool {
-        // Normal ANSI SQL
+        // ANSI SQL
         (ch >= 'a' && ch <= 'z')
             || (ch >= 'A' && ch <= 'Z')
             || (ch >= '0' && ch <= '9')
@@ -46,11 +47,11 @@ pub fn main() -> Result<(), Error> {
     let mut models = vec![];
 
     for dir in config.project.models {
-        for entry in WalkDir::new(format!("{}/{}", root_dir, dir)) {
+        for entry in WalkDir::new(format!("{}{}", root_dir, dir)) {
             let entry = entry.unwrap();
-            if let Some(abc) = entry.path().extension() {
+            if let Some(ext) = entry.path().extension() {
                 {
-                    if abc == "sql" {
+                    if ext == "sql" {
                         let e = entry.clone();
                         models.push(e);
                     }
@@ -59,13 +60,19 @@ pub fn main() -> Result<(), Error> {
         }
     }
 
-    models.par_iter().for_each(|x| {
-        let sql = fs::read_to_string(x.path()).unwrap();
+    let asts: HashMap<String, Vec<Statement>> = models
+        .par_iter()
+        .map(|x| {
+            let sql = fs::read_to_string(x.path()).unwrap();
 
-        let ast = Parser::parse_sql(&dialect, sql).unwrap();
+            let ast = Parser::parse_sql(&dialect, sql).unwrap();
 
-        println!("AST: {:?}", ast);
-    });
+            (x.path().to_str().unwrap().to_string(), ast)
+        })
+        .collect();
+
+    println!("{} models", asts.len());
+    println!("{:?}", asts);
 
     Ok(())
 }
