@@ -10,6 +10,8 @@ edition = "2018"
 sqlparser = "*"
 walkdir = "2"
 toml = "*"
+serde = "*"
+serde_derive = "*"
 
 [dev-dependencies]
 criterion = "0.3"
