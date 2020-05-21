@@ -13,6 +13,7 @@ toml = "*"
 serde = "*"
 serde_derive = "*"
 rayon = "*"
+structopt = "*"
 
 [dev-dependencies]
 criterion = "0.3"

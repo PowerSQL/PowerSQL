@@ -1,11 +1,10 @@
 use rayon::prelude::*;
+use serde_derive::Deserialize;
 use sqlparser::ast::Statement;
 use sqlparser::parser::Parser;
 use std::collections::HashMap;
 use std::fs;
 use walkdir::{Error, WalkDir};
-
-use serde_derive::Deserialize;
 
 #[derive(Deserialize, Debug)]
 struct PowerSqlConfig {
@@ -15,6 +14,17 @@ struct PowerSqlConfig {
 struct Project {
     name: String,
     models: Vec<String>,
+}
+
+use structopt::StructOpt;
+
+#[derive(Debug, StructOpt)]
+#[structopt(name = "PowerSQL", about = "An example of StructOpt usage.")]
+struct Opt {
+    /// Activate debug mode
+    // short and long flags (-d, --debug) will be deduced from the field's name
+    #[structopt(name = "DIR", default_value = ".")]
+    root_dir: String,
 }
 
 #[derive(Debug)]
@@ -36,7 +46,11 @@ impl sqlparser::dialect::Dialect for PowerSqlDialect {
 }
 
 pub fn main() -> Result<(), Error> {
-    let root_dir = "examples/project_1/";
+    let opt = Opt::from_args();
+
+    println!("{:?}", opt);
+
+    let root_dir = opt.root_dir;
 
     // Load project
     let contents = fs::read_to_string(format!("{}{}", root_dir, "powersql.toml"))
