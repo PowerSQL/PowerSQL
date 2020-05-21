@@ -29,7 +29,5 @@ pub fn main() -> Result<(), Error> {
 
     println!("AST: {:?}", ast);
 
-    println!("Running");
-
-    return Ok(());
+    Ok(())
 }
