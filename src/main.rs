@@ -1,10 +1,11 @@
 use rayon::prelude::*;
 use serde_derive::Deserialize;
-use sqlparser::ast::Statement;
+use sqlparser::ast::Query;
 use sqlparser::parser::Parser;
+use sqlparser::tokenizer::{Token, Tokenizer, Whitespace, Word};
 use std::collections::HashMap;
 use std::fs;
-use walkdir::{Error, WalkDir};
+use walkdir::WalkDir;
 
 #[derive(Deserialize, Debug)]
 struct PowerSqlConfig {
@@ -17,14 +18,17 @@ struct Project {
 }
 
 use structopt::StructOpt;
+#[derive(Debug, StructOpt)]
+enum Command {
+    Check,
+    Lint,
+}
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "PowerSQL", about = "An example of StructOpt usage.")]
+#[structopt(name = "PowerSQL", about = "The data tool")]
 struct Opt {
-    /// Activate debug mode
-    // short and long flags (-d, --debug) will be deduced from the field's name
-    #[structopt(name = "DIR", default_value = ".")]
-    root_dir: String,
+    #[structopt(subcommand, name = "CMD")]
+    command: Command,
 }
 
 #[derive(Debug)]
@@ -45,23 +49,22 @@ impl sqlparser::dialect::Dialect for PowerSqlDialect {
     }
 }
 
-pub fn main() -> Result<(), Error> {
+pub fn main() -> Result<(), String> {
     let opt = Opt::from_args();
 
-    println!("{:?}", opt);
-
-    let root_dir = opt.root_dir;
-
     // Load project
-    let contents = fs::read_to_string(format!("{}{}", root_dir, "powersql.toml"))
-        .expect("No powersql.toml file found");
-    let config: PowerSqlConfig = toml::from_str(&contents).unwrap();
+    let contents = fs::read_to_string("powersql.toml").expect("No powersql.toml file found");
+    let config = toml::from_str(&contents);
+    let config: PowerSqlConfig = match config {
+        Err(x) => return Err(x.to_string()),
+        Ok(conf) => conf,
+    };
 
     let dialect = PowerSqlDialect {};
     let mut models = vec![];
 
     for dir in config.project.models {
-        for entry in WalkDir::new(format!("{}{}", root_dir, dir)) {
+        for entry in WalkDir::new(format!("{}", dir)) {
             let entry = entry.unwrap();
             if let Some(ext) = entry.path().extension() {
                 {
@@ -74,19 +77,27 @@ pub fn main() -> Result<(), Error> {
         }
     }
 
-    let asts: HashMap<String, Vec<Statement>> = models
-        .par_iter()
-        .map(|x| {
-            let sql = fs::read_to_string(x.path()).unwrap();
+    match opt.command {
+        Command::Check => {
+            // Check / load
+            let asts: HashMap<String, Query> = models
+                .par_iter()
+                .map(|x| {
+                    let sql = fs::read_to_string(x.path()).unwrap();
 
-            let ast = Parser::parse_sql(&dialect, sql).unwrap();
+                    //let ast = Parser::parse_sql(&dialect, sql).unwrap();
+                    let tokens = Tokenizer::new(&dialect, &sql).tokenize().unwrap();
+                    let mut parser = Parser::new(tokens);
+                    let ast = parser.parse_query().unwrap();
 
-            (x.path().to_str().unwrap().to_string(), ast)
-        })
-        .collect();
+                    (x.path().to_str().unwrap().to_string(), ast)
+                })
+                .collect();
 
-    println!("{} models", asts.len());
-    println!("{:?}", asts);
+            println!("{} models correctly loaded", asts.len());
+        }
+        Command::Lint => unimplemented!(),
+    }
 
     Ok(())
 }

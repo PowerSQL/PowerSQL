@@ -1,2 +1,5 @@
-SELECT a, b
-FROM @model
+SELECT
+    a,
+    b
+FROM
+    @model

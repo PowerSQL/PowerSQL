@@ -1,2 +1,5 @@
-SELECT *
-FROM a
+SELECT
+    b,
+    c AS x
+FROM
+    t
