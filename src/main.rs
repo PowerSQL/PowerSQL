@@ -117,6 +117,34 @@ fn get_dependencies(
         .collect()
 }
 
+fn detect_cycles(deps: &HashMap<String, Vec<String>>) -> Result<(), String> {
+    let mut visited_all = HashSet::new();
+    for (model, model_deps) in deps.iter() {
+        let mut visited = HashSet::new();
+        let mut stack = model_deps.clone();
+
+        visited.insert(model);
+        while let Some(x) = stack.pop() {
+            if visited_all.contains(&x) {
+                continue;
+            }
+            visited_all.insert(x.clone());
+
+            let d = deps.get(&x).ok_or(format!("Model {} not found", &x))?;
+
+            for i in d.iter() {
+                if visited.contains(i) {
+                    println!("{}", i);
+                    return Err(format!("Loop detected while checking model {}", model));
+                }
+                visited.insert(i);
+            }
+            stack.extend(d.clone());
+        }
+    }
+    Ok(())
+}
+
 pub fn main() -> Result<(), String> {
     let opt = Opt::from_args();
 
@@ -167,28 +195,7 @@ pub fn main() -> Result<(), String> {
             let deps: HashMap<String, Vec<String>> = get_dependencies(&asts, &mappings);
 
             // Cycle detection
-            let mut visited_all = HashSet::new();
-            for (model, model_deps) in deps.iter() {
-                let mut visited = HashSet::new();
-                let mut stack = model_deps.clone();
-
-                visited.insert(model);
-                while let Some(x) = stack.pop() {
-                    if visited_all.contains(&x) {
-                        continue;
-                    }
-                    visited_all.insert(x.clone());
-                    let d = &deps[&x];
-
-                    for i in d.iter() {
-                        if visited.contains(i) {
-                            return Err(format!("Loop detected while checking model {}", model));
-                        }
-                        visited.insert(i);
-                    }
-                    stack.extend(d.clone());
-                }
-            }
+            detect_cycles(&deps)?;
 
             println!("{:?}", mappings);
             println!("{} models loaded", asts.len());
@@ -223,4 +230,52 @@ fn test_dependencies() {
             .cloned()
             .collect()
     )
+}
+
+#[test]
+fn test_cycle_detection_err() {
+    assert!(matches!(
+        detect_cycles(
+            &(vec![
+                ("a".to_string(), vec!["b".to_string()]),
+                ("b".to_string(), vec!["a".to_string()])
+            ]
+            .iter()
+            .cloned()
+            .collect()),
+        ),
+        Err(_)
+    ));
+}
+
+#[test]
+fn test_cycle_detection_err_not_found() {
+    assert!(matches!(
+        detect_cycles(
+            &(vec![
+                ("a".to_string(), vec!["b".to_string()]),
+                ("b".to_string(), vec!["c".to_string()])
+            ]
+            .iter()
+            .cloned()
+            .collect()),
+        ),
+        Err(_)
+    ));
+}
+
+#[test]
+fn test_cycle_detection_ok() {
+    assert!(matches!(
+        detect_cycles(
+            &(vec![
+                ("a".to_string(), vec!["b".to_string()]),
+                ("b".to_string(), vec![])
+            ]
+            .iter()
+            .cloned()
+            .collect()),
+        ),
+        Ok(_)
+    ));
 }
