@@ -6,7 +6,6 @@ use sqlparser::tokenizer::Tokenizer;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
-use walkdir::DirEntry;
 use walkdir::WalkDir;
 
 #[derive(Deserialize, Debug)]
@@ -53,6 +52,7 @@ impl sqlparser::dialect::Dialect for PowerSqlDialect {
     }
 }
 
+// TODO don't pass mutable vec
 fn get_refs_cte(cte: &Cte, vec: &mut Vec<String>) {
     get_refs(&cte.query, vec)
 }
@@ -77,11 +77,11 @@ fn get_refs(query: &Query, vec: &mut Vec<String>) {
     get_refs_set_expr(&query.body, vec);
 }
 
-fn load_asts(models: &Vec<DirEntry>) -> HashMap<String, Query> {
+fn load_asts(models: &Vec<String>) -> HashMap<String, Query> {
     models
         .par_iter()
         .map(|x| {
-            let sql = fs::read_to_string(x.path()).unwrap();
+            let sql = fs::read_to_string(x).unwrap();
 
             //let ast = Parser::parse_sql(&dialect, sql).unwrap();
             let tokens = Tokenizer::new(&PowerSqlDialect {}, &sql)
@@ -91,14 +91,14 @@ fn load_asts(models: &Vec<DirEntry>) -> HashMap<String, Query> {
             // TODO handle parse error
             let ast = parser.parse_query().unwrap();
 
-            (x.path().to_str().unwrap().to_string(), ast)
+            (x.clone(), ast)
         })
         .collect()
 }
 
 fn get_dependencies(
     asts: &HashMap<String, Query>,
-    mappings: &HashMap<String, &str>,
+    mappings: &HashMap<String, String>,
 ) -> HashMap<String, Vec<String>> {
     asts.iter()
         .map(|(src, query)| {
@@ -145,6 +145,24 @@ fn detect_cycles(deps: &HashMap<String, Vec<String>>) -> Result<(), String> {
     Ok(())
 }
 
+fn get_mappings(models: &Vec<String>) -> HashMap<String, String> {
+    models
+        .iter()
+        .flat_map(|x| {
+            let parts: Vec<&str> = x.trim_end_matches(".sql").split('/').collect();
+            let mut res = Vec::with_capacity(parts.len() - 1);
+            let mut items = vec![];
+            for &p in parts.iter().rev().take(parts.len()) {
+                items.push(p);
+                let names: Vec<&str> = items.iter().map(|x| *x).rev().collect();
+                let t = names.join(".");
+                res.push((t, x.clone()));
+            }
+            res
+        })
+        .collect()
+}
+
 pub fn main() -> Result<(), String> {
     let opt = Opt::from_args();
 
@@ -163,8 +181,7 @@ pub fn main() -> Result<(), String> {
             if let Some(ext) = entry.path().extension() {
                 {
                     if ext == "sql" {
-                        let e = entry.clone();
-                        models.push(e);
+                        models.push(entry.path().to_str().unwrap().to_string());
                     }
                 }
             }
@@ -174,21 +191,7 @@ pub fn main() -> Result<(), String> {
     match opt.command {
         Command::Check => {
             // Create mappings to full name
-            let mappings: HashMap<String, &str> = models
-                .iter()
-                .flat_map(|x| {
-                    let x = x.path().to_str().unwrap();
-                    let parts: Vec<&str> = x.trim_end_matches(".sql").split('/').collect();
-                    let mut s = String::new();
-                    let mut res = Vec::with_capacity(parts.len() - 1);
-                    for &p in parts.iter().rev().take(parts.len() - 1) {
-                        s += p;
-                        res.push((s.to_string(), x));
-                    }
-                    res
-                })
-                .collect();
-
+            let mappings = get_mappings(&models);
             let asts = load_asts(&models);
 
             // Create list of dependencies
@@ -201,7 +204,7 @@ pub fn main() -> Result<(), String> {
             println!("{} models loaded", asts.len());
             println!("{:?} deps", deps);
         }
-        Command::Run => unimplemented!(),
+        Command::Run => {}
         Command::Lint => unimplemented!(),
         Command::Docs => unimplemented!(),
     }
@@ -220,7 +223,10 @@ fn test_dependencies() {
 
     let x = get_dependencies(
         &(vec![("x".to_string(), ast)].iter().cloned().collect()),
-        &(vec![("t".to_string(), "t.sql")].iter().cloned().collect()),
+        &(vec![("t".to_string(), "t.sql".to_string())]
+            .iter()
+            .cloned()
+            .collect()),
     );
 
     assert_eq!(
@@ -278,4 +284,22 @@ fn test_cycle_detection_ok() {
         ),
         Ok(_)
     ));
+}
+
+#[test]
+fn test_mappings() {
+    let models = vec!["a/b/c.sql".to_string()];
+    let mappings = get_mappings(&models);
+
+    assert_eq!(
+        mappings,
+        (vec![
+            ("c".to_string(), "a/b/c.sql".to_string()),
+            ("b.c".to_string(), "a/b/c.sql".to_string()),
+            ("a.b.c".to_string(), "a/b/c.sql".to_string()),
+        ])
+        .iter()
+        .cloned()
+        .collect()
+    )
 }
