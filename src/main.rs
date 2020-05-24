@@ -212,6 +212,10 @@ pub fn main() -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(test)]
+#[macro_use]
+extern crate maplit;
+
 #[test]
 fn test_dependencies() {
     let sql = "select a from @t";
@@ -229,27 +233,16 @@ fn test_dependencies() {
             .collect()),
     );
 
-    assert_eq!(
-        x,
-        vec![("x".to_string(), vec!["t.sql".to_string()])]
-            .iter()
-            .cloned()
-            .collect()
-    )
+    assert_eq!(x, hashmap! {"x".to_string() => vec!["t.sql".to_string()]})
 }
 
 #[test]
 fn test_cycle_detection_err() {
     assert!(matches!(
-        detect_cycles(
-            &(vec![
-                ("a".to_string(), vec!["b".to_string()]),
-                ("b".to_string(), vec!["a".to_string()])
-            ]
-            .iter()
-            .cloned()
-            .collect()),
-        ),
+        detect_cycles(&hashmap! {
+            "a".to_string() => vec!["b".to_string()],
+            "b".to_string() => vec!["a".to_string()]
+        }),
         Err(_)
     ));
 }
@@ -257,15 +250,10 @@ fn test_cycle_detection_err() {
 #[test]
 fn test_cycle_detection_err_not_found() {
     assert!(matches!(
-        detect_cycles(
-            &(vec![
-                ("a".to_string(), vec!["b".to_string()]),
-                ("b".to_string(), vec!["c".to_string()])
-            ]
-            .iter()
-            .cloned()
-            .collect()),
-        ),
+        detect_cycles(&hashmap! {
+            "a".to_string() => vec!["b".to_string()],
+            "b".to_string() => vec!["c".to_string()]
+        }),
         Err(_)
     ));
 }
@@ -273,33 +261,25 @@ fn test_cycle_detection_err_not_found() {
 #[test]
 fn test_cycle_detection_ok() {
     assert!(matches!(
-        detect_cycles(
-            &(vec![
-                ("a".to_string(), vec!["b".to_string()]),
-                ("b".to_string(), vec![])
-            ]
-            .iter()
-            .cloned()
-            .collect()),
-        ),
+        detect_cycles(&hashmap! {
+            "a".to_string() => vec!["b".to_string()],
+            "b".to_string() => vec![]
+        }),
         Ok(_)
     ));
 }
 
 #[test]
+
 fn test_mappings() {
     let models = vec!["a/b/c.sql".to_string()];
     let mappings = get_mappings(&models);
 
     assert_eq!(
         mappings,
-        (vec![
-            ("c".to_string(), "a/b/c.sql".to_string()),
-            ("b.c".to_string(), "a/b/c.sql".to_string()),
-            ("a.b.c".to_string(), "a/b/c.sql".to_string()),
-        ])
-        .iter()
-        .cloned()
-        .collect()
+        hashmap! {"c".to_string() => "a/b/c.sql".to_string(),
+            "b.c".to_string() => "a/b/c.sql".to_string(),
+            "a.b.c".to_string() => "a/b/c.sql".to_string()
+        }
     )
 }
