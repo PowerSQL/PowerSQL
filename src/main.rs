@@ -63,7 +63,7 @@ fn get_refs_set_expr(ctes: &SetExpr, vec: &mut Vec<String>) {
         SetExpr::Query(q) => get_refs(q, vec),
         SetExpr::Select(s) => s.from.iter().for_each(|x| match &x.relation {
             TableFactor::Table { name, .. } => {
-                if name.0[0].starts_with("@") {
+                if name.0[0].starts_with('@') {
                     vec.push(name.0.join("."))
                 }
             }
@@ -78,7 +78,7 @@ fn get_refs(query: &Query, vec: &mut Vec<String>) {
     get_refs_set_expr(&query.body, vec);
 }
 
-fn load_asts(models: &Vec<String>) -> HashMap<String, Query> {
+fn load_asts(models: &[String]) -> HashMap<String, Query> {
     models
         .par_iter()
         .map(|x| {
@@ -163,7 +163,7 @@ fn generate_execution_plan(deps: &HashMap<String, Vec<String>>) -> Result<Vec<&s
             if visited_all.contains(&x) {
                 continue;
             }
-            visited_all.insert(x.clone());
+            visited_all.insert(x);
 
             let d = deps.get(x).ok_or(format!("Model {} not found", &x))?;
 
@@ -182,7 +182,7 @@ fn generate_execution_plan(deps: &HashMap<String, Vec<String>>) -> Result<Vec<&s
     Ok(pairs.iter().map(|(_, x)| *x).collect())
 }
 
-fn get_mappings(models: &Vec<String>) -> HashMap<String, String> {
+fn get_mappings(models: &[String]) -> HashMap<String, String> {
     models
         .iter()
         .flat_map(|x| {
@@ -191,7 +191,7 @@ fn get_mappings(models: &Vec<String>) -> HashMap<String, String> {
             let mut items = vec![];
             for &p in parts.iter().rev().take(parts.len()) {
                 items.push(p);
-                let names: Vec<&str> = items.iter().map(|x| *x).rev().collect();
+                let names: Vec<&str> = items.iter().copied().rev().collect();
                 let t = names.join(".");
                 res.push((t, x.clone()));
             }
