@@ -3,6 +3,7 @@ use serde_derive::Deserialize;
 use sqlparser::ast::{Cte, Query, SetExpr, TableFactor};
 use sqlparser::parser::Parser;
 use sqlparser::tokenizer::Tokenizer;
+use std::cmp;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
@@ -134,7 +135,6 @@ fn detect_cycles(deps: &HashMap<String, Vec<String>>) -> Result<(), String> {
 
             for i in d.iter() {
                 if visited.contains(i) {
-                    println!("{}", i);
                     return Err(format!("Loop detected while checking model {}", model));
                 }
                 visited.insert(i);
@@ -143,6 +143,43 @@ fn detect_cycles(deps: &HashMap<String, Vec<String>>) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+// TODO share code with detect_cycles and/or assume no cycles?
+fn generate_execution_plan(deps: &HashMap<String, Vec<String>>) -> Result<Vec<&str>, String> {
+    let mut visited_all = HashSet::new();
+    let mut models_levels = HashMap::new();
+
+    for (model, model_deps) in deps.iter() {
+        let mut visited = HashSet::new();
+        let mut stack: Vec<(i32, &str)> = model_deps.iter().map(|x| (-1, x.as_str())).collect();
+
+        visited.insert(model);
+        models_levels.entry(model.as_str()).or_insert(0);
+        while let Some((level, x)) = stack.pop() {
+            let prev = *models_levels.get(x).unwrap_or(&0);
+            models_levels.insert(x, cmp::min(prev, level));
+
+            if visited_all.contains(&x) {
+                continue;
+            }
+            visited_all.insert(x.clone());
+
+            let d = deps.get(x).ok_or(format!("Model {} not found", &x))?;
+
+            for i in d.iter() {
+                if visited.contains(i) {
+                    return Err(format!("Loop detected while checking model {}", model));
+                }
+                visited.insert(i);
+            }
+            let added_stack: Vec<(i32, &str)> = d.iter().map(|x| (level - 1, x.as_str())).collect();
+            stack.extend(added_stack.clone());
+        }
+    }
+    let mut pairs: Vec<(i32, &str)> = models_levels.iter().map(|(x, y)| (*y, *x)).collect();
+    pairs.sort();
+    Ok(pairs.iter().map(|(_, x)| *x).collect())
 }
 
 fn get_mappings(models: &Vec<String>) -> HashMap<String, String> {
@@ -190,21 +227,30 @@ pub fn main() -> Result<(), String> {
 
     match opt.command {
         Command::Check => {
-            // Create mappings to full name
-            let mappings = get_mappings(&models);
             let asts = load_asts(&models);
 
-            // Create list of dependencies
-            let deps: HashMap<String, Vec<String>> = get_dependencies(&asts, &mappings);
+            let mappings = get_mappings(&models);
+            let dependencies: HashMap<String, Vec<String>> = get_dependencies(&asts, &mappings);
 
-            // Cycle detection
-            detect_cycles(&deps)?;
+            detect_cycles(&dependencies)?;
 
-            println!("{:?}", mappings);
-            println!("{} models loaded", asts.len());
-            println!("{:?} deps", deps);
+            println!("{} models loaded succesfully", asts.len());
         }
-        Command::Run => {}
+        Command::Run => {
+            let asts = load_asts(&models);
+
+            let mappings = get_mappings(&models);
+            let dependencies: HashMap<String, Vec<String>> = get_dependencies(&asts, &mappings);
+
+            // load plan
+
+            let plan = generate_execution_plan(&dependencies)?;
+
+            for p in plan {
+                println!("Executing {}", p);
+                println!("Executing {} finished", p);
+            }
+        }
         Command::Lint => unimplemented!(),
         Command::Docs => unimplemented!(),
     }
@@ -270,7 +316,6 @@ fn test_cycle_detection_ok() {
 }
 
 #[test]
-
 fn test_mappings() {
     let models = vec!["a/b/c.sql".to_string()];
     let mappings = get_mappings(&models);
@@ -282,4 +327,15 @@ fn test_mappings() {
             "a.b.c".to_string() => "a/b/c.sql".to_string()
         }
     )
+}
+#[test]
+fn test_generate_execution_plan() {
+    let deps = hashmap! {
+        "a".to_string() => vec!["b".to_string()],
+        "b".to_string() => vec!["c".to_string()],
+        "c".to_string() => vec![],
+    };
+    let plan = generate_execution_plan(&deps);
+
+    assert_eq!(plan, Ok(vec!["c", "b", "a"]))
 }
