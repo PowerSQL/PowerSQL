@@ -3,7 +3,6 @@ use serde_derive::Deserialize;
 use sqlparser::ast::{Cte, Query, SetExpr, TableFactor};
 use sqlparser::parser::Parser;
 use sqlparser::tokenizer::Tokenizer;
-use std::cmp;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
@@ -145,44 +144,7 @@ fn detect_cycles(deps: &HashMap<String, Vec<String>>) -> Result<(), String> {
     Ok(())
 }
 
-// TODO share code with detect_cycles and/or assume no cycles?
-fn generate_execution_plan(deps: &HashMap<String, Vec<String>>) -> Result<Vec<&str>, String> {
-    let mut visited_all = HashSet::new();
-    let mut models_levels = HashMap::new();
-
-    for (model, model_deps) in deps.iter() {
-        let mut visited = HashSet::new();
-        let mut stack: Vec<(i32, &str)> = model_deps.iter().map(|x| (-1, x.as_str())).collect();
-
-        visited.insert(model);
-        models_levels.entry(model.as_str()).or_insert(0);
-        while let Some((level, x)) = stack.pop() {
-            let prev = *models_levels.get(x).unwrap_or(&0);
-            models_levels.insert(x, cmp::min(prev, level));
-
-            if visited_all.contains(&x) {
-                continue;
-            }
-            visited_all.insert(x);
-
-            let d = deps.get(x).ok_or(format!("Model {} not found", &x))?;
-
-            for i in d.iter() {
-                if visited.contains(i) {
-                    return Err(format!("Loop detected while checking model {}", model));
-                }
-                visited.insert(i);
-            }
-            let added_stack: Vec<(i32, &str)> = d.iter().map(|x| (level - 1, x.as_str())).collect();
-            stack.extend(added_stack.clone());
-        }
-    }
-    let mut pairs: Vec<(i32, &str)> = models_levels.iter().map(|(x, y)| (*y, *x)).collect();
-    pairs.sort();
-    Ok(pairs.iter().map(|(_, x)| *x).collect())
-}
-
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 struct ModelNode {
     live_parents: usize,
     next_nodes: Vec<String>,
@@ -194,7 +156,7 @@ fn build_graph(deps: &HashMap<String, Vec<String>>) -> Result<HashMap<&str, Mode
     let mut nodes = Vec::new();
     for (model, model_deps) in deps.iter() {
         // for each model collect number of parents
-        let x = graph.entry(model.as_str()).or_insert(ModelNode {
+        graph.entry(model.as_str()).or_insert(ModelNode {
             live_parents: 0,
             next_nodes: vec![],
         });
@@ -274,14 +236,31 @@ pub fn main() -> Result<(), String> {
 
             let mappings = get_mappings(&models);
             let dependencies: HashMap<String, Vec<String>> = get_dependencies(&asts, &mappings);
+            detect_cycles(&dependencies)?;
 
-            // load plan
+            let mut graph = build_graph(&dependencies)?;
 
-            let plan = generate_execution_plan(&dependencies)?;
+            let mut nodes: Vec<_> = graph
+                .iter()
+                .filter(|(_m, node)| node.live_parents == 0)
+                .map(|(x, _)| x.to_string())
+                .collect();
+            println!("Graph {:?}", graph);
 
-            for p in plan {
-                println!("Executing {}", p);
-                println!("Executing {} finished", p);
+            while let Some(m) = nodes.pop() {
+                println!("Executing {}", m);
+                // execute node
+                println!("Ready {}", m);
+                println!("Graph {:?}", graph);
+
+                let node = graph.get(m.as_str()).unwrap().clone();
+                for n in node.next_nodes.iter() {
+                    let mut node = graph.get_mut(n.as_str()).unwrap();
+                    node.live_parents -= 1;
+                    if node.live_parents == 0 {
+                        nodes.push(n.to_string());
+                    }
+                }
             }
         }
         Command::Lint => unimplemented!(),
@@ -360,17 +339,6 @@ fn test_mappings() {
             "a.b.c".to_string() => "a/b/c.sql".to_string()
         }
     )
-}
-#[test]
-fn test_generate_execution_plan() {
-    let deps = hashmap! {
-        "a".to_string() => vec!["b".to_string()],
-        "b".to_string() => vec!["c".to_string()],
-        "c".to_string() => vec![],
-    };
-    let plan = generate_execution_plan(&deps);
-
-    assert_eq!(plan, Ok(vec!["c", "b", "a"]))
 }
 
 #[test]
