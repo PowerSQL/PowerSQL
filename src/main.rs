@@ -1,3 +1,7 @@
+mod parser;
+mod types;
+
+use parser::PowerSqlDialect;
 use rayon::prelude::*;
 use serde_derive::Deserialize;
 use sqlparser::ast::{Cte, Query, SetExpr, TableFactor};
@@ -32,24 +36,6 @@ enum Command {
 struct Opt {
     #[structopt(subcommand, name = "CMD")]
     command: Command,
-}
-
-#[derive(Debug)]
-struct PowerSqlDialect {}
-
-impl sqlparser::dialect::Dialect for PowerSqlDialect {
-    fn is_identifier_start(&self, ch: char) -> bool {
-        // Ref (@) or normal identifier
-        (ch == '@') || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')
-    }
-
-    fn is_identifier_part(&self, ch: char) -> bool {
-        // ANSI SQL
-        (ch >= 'a' && ch <= 'z')
-            || (ch >= 'A' && ch <= 'Z')
-            || (ch >= '0' && ch <= '9')
-            || ch == '_'
-    }
 }
 
 // TODO don't pass mutable vec
@@ -224,6 +210,11 @@ pub fn main() -> Result<(), String> {
         Command::Check => {
             let asts = load_asts(&models);
 
+            for (name, query) in asts.iter() {
+                let ty = types::get_model_type(query);
+                println!("{} {:?}", name, ty)
+            }
+
             let mappings = get_mappings(&models);
             let dependencies: HashMap<String, Vec<String>> = get_dependencies(&asts, &mappings);
 
@@ -243,7 +234,7 @@ pub fn main() -> Result<(), String> {
             let mut nodes: Vec<_> = graph
                 .iter()
                 .filter(|(_m, node)| node.live_parents == 0)
-                .map(|(x, _)| x.to_string())
+                .map(|(x, _)| (*x).to_string())
                 .collect();
             println!("Graph {:?}", graph);
 
