@@ -182,6 +182,39 @@ fn generate_execution_plan(deps: &HashMap<String, Vec<String>>) -> Result<Vec<&s
     Ok(pairs.iter().map(|(_, x)| *x).collect())
 }
 
+#[derive(Debug, Eq, PartialEq)]
+struct ModelNode {
+    live_parents: usize,
+    next_nodes: Vec<String>,
+}
+
+fn build_graph(deps: &HashMap<String, Vec<String>>) -> Result<HashMap<&str, ModelNode>, String> {
+    let mut graph = HashMap::new();
+
+    let mut nodes = Vec::new();
+    for (model, model_deps) in deps.iter() {
+        // for each model collect number of parents
+        let x = graph.entry(model.as_str()).or_insert(ModelNode {
+            live_parents: 0,
+            next_nodes: vec![],
+        });
+
+        for m in model_deps {
+            nodes.push((model.as_str(), m.as_str()));
+        }
+    }
+
+    for (from, to) in nodes {
+        let x = graph.get_mut(from).unwrap();
+        x.next_nodes.push(to.to_string());
+
+        let mut y = graph.get_mut(to).unwrap();
+        y.live_parents += 1;
+    }
+
+    Ok(graph)
+}
+
 fn get_mappings(models: &[String]) -> HashMap<String, String> {
     models
         .iter()
@@ -338,4 +371,32 @@ fn test_generate_execution_plan() {
     let plan = generate_execution_plan(&deps);
 
     assert_eq!(plan, Ok(vec!["c", "b", "a"]))
+}
+
+#[test]
+fn test_build_graph() {
+    let deps = hashmap! {
+        "a".to_string() => vec!["b".to_string()],
+        "b".to_string() => vec!["c".to_string()],
+        "c".to_string() => vec![],
+    };
+    let plan = build_graph(&deps).unwrap();
+
+    assert_eq!(
+        plan,
+        hashmap! {
+                "a" => ModelNode {
+                    live_parents: 0,
+                    next_nodes: vec!["b".to_string()]
+            },
+                "b" => ModelNode {
+                    live_parents: 1,
+                    next_nodes: vec!["c".to_string()]
+            },
+                "c" => ModelNode {
+                    live_parents: 1,
+                    next_nodes: vec![]
+            }
+        }
+    );
 }
