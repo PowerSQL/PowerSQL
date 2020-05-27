@@ -1,16 +1,16 @@
 use sqlparser::ast::Expr;
 use sqlparser::ast::Query;
 use sqlparser::ast::SelectItem;
-use std::collections::HashMap;
 
-#[derive(Debug)]
+use std::collections::HashMap;
+#[derive(Debug, Eq, PartialEq)]
 pub enum TableType {
     // SELECT *,[...] FROM t
     Open(HashMap<String, BaseType>),
     // SELECT a, b, c FROM ts
     Closed(HashMap<String, BaseType>),
 }
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum BaseType {
     Any,
     String,
@@ -57,4 +57,25 @@ pub fn get_model_type(query: &Query) -> TableType {
         }
         _ => TableType::Open(HashMap::new()),
     }
+}
+
+#[cfg(test)]
+use super::parser::PowerSqlDialect;
+use sqlparser::parser::Parser;
+use sqlparser::tokenizer::Tokenizer;
+
+#[test]
+pub fn get_model_type_test() {
+    let sql = "select a from t";
+    let tokens = Tokenizer::new(&PowerSqlDialect {}, &sql)
+        .tokenize()
+        .unwrap();
+    let mut parser = Parser::new(tokens);
+    let query = parser.parse_query().unwrap();
+    let ty = get_model_type(&query);
+
+    assert_eq!(
+        ty,
+        TableType::Closed(hashmap! {"a".to_string() => BaseType::Any})
+    )
 }
