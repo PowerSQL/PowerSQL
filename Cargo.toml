@@ -14,6 +14,7 @@ serde = "*"
 serde_derive = "*"
 rayon = "*"
 structopt = "*"
+im = "*"
 
 [dev-dependencies]
 criterion = "0.3"

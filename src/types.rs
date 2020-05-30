@@ -36,7 +36,7 @@ fn expr_type(expr: &Expr) -> BaseType {
     }
 }
 
-pub fn get_model_type(query: &Query) -> TableType {
+pub fn get_model_type(query: &Query, _type_env: im::HashMap<String, TableType>) -> TableType {
     // TODO extend with CTES
     match &query.body {
         sqlparser::ast::SetExpr::Select(select) => {
@@ -96,7 +96,7 @@ pub fn get_model_type_test() {
         .unwrap();
     let mut parser = Parser::new(tokens);
     let query = parser.parse_query().unwrap();
-    let ty = get_model_type(&query);
+    let ty = get_model_type(&query, im::HashMap::new());
 
     assert_eq!(
         ty,
@@ -112,7 +112,7 @@ pub fn get_model_type_wildcard() {
         .unwrap();
     let mut parser = Parser::new(tokens);
     let query = parser.parse_query().unwrap();
-    let ty = get_model_type(&query);
+    let ty = get_model_type(&query, im::HashMap::new());
 
     assert_eq!(ty, TableType::Open(HashMap::with_capacity(0)))
 }
@@ -125,7 +125,7 @@ pub fn get_model_type_test_constants() {
         .unwrap();
     let mut parser = Parser::new(tokens);
     let query = parser.parse_query().unwrap();
-    let ty = get_model_type(&query);
+    let ty = get_model_type(&query, im::HashMap::new());
 
     assert_eq!(
         ty,

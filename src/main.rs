@@ -211,7 +211,7 @@ pub fn main() -> Result<(), String> {
             let asts = load_asts(&models);
 
             for (name, query) in asts.iter() {
-                let ty = types::get_model_type(query);
+                let ty = types::get_model_type(query, im::HashMap::new());
                 println!("{} {:?}", name, ty)
             }
 
