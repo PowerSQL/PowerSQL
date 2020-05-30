@@ -16,6 +16,10 @@ rayon = "*"
 structopt = "*"
 im = "*"
 
+tokio = { version = "*", features = ["full"] }
+tokio-postgres = "*"
+
+
 [dev-dependencies]
 criterion = "0.3"
 maplit = "*"

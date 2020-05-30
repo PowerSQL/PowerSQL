@@ -1,6 +1,6 @@
+mod execute;
 mod parser;
 mod types;
-
 use parser::PowerSqlDialect;
 use rayon::prelude::*;
 use serde_derive::Deserialize;
@@ -152,7 +152,7 @@ fn build_graph(deps: &HashMap<String, Vec<String>>) -> Result<HashMap<&str, Mode
         }
     }
 
-    for (from, to) in nodes {
+    for (to, from) in nodes {
         let x = graph.get_mut(from).unwrap();
         x.next_nodes.push(to.to_string());
 
@@ -181,7 +181,8 @@ fn get_mappings(models: &[String]) -> HashMap<String, String> {
         .collect()
 }
 
-pub fn main() -> Result<(), String> {
+#[tokio::main]
+pub async fn main() -> Result<(), String> {
     let opt = Opt::from_args();
 
     // Load project
@@ -238,9 +239,14 @@ pub fn main() -> Result<(), String> {
                 .collect();
             println!("Graph {:?}", graph);
 
+            let executor = execute::PostgresExecutor {};
+
             while let Some(m) = nodes.pop() {
                 println!("Executing {}", m);
-                // execute node
+                executor
+                    .execute(&m, asts.get(&m).unwrap())
+                    .await
+                    .map_err(|_x| format!("{}", _x))?;
                 println!("Ready {}", m);
                 println!("Graph {:?}", graph);
 
@@ -345,16 +351,16 @@ fn test_build_graph() {
         plan,
         hashmap! {
                 "a" => ModelNode {
-                    live_parents: 0,
-                    next_nodes: vec!["b".to_string()]
+                    live_parents: 1,
+                    next_nodes: vec![]
             },
                 "b" => ModelNode {
                     live_parents: 1,
-                    next_nodes: vec!["c".to_string()]
+                    next_nodes: vec!["a".to_string()]
             },
                 "c" => ModelNode {
-                    live_parents: 1,
-                    next_nodes: vec![]
+                    live_parents: 0,
+                    next_nodes: vec!["b".to_string()]
             }
         }
     );
