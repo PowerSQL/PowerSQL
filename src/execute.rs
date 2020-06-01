@@ -7,8 +7,8 @@ pub struct PostgresExecutor {}
 
 impl PostgresExecutor {
     pub async fn execute(self, name: &str, query: &Query) -> Result<(), Error> {
-        print!("Making connection");
-        let (client, connection) = tokio_postgres::connect(
+        println!("Making connection");
+        let (mut client, connection) = tokio_postgres::connect(
             "postgresql://postgres:postgres@localhost:5432/postgres",
             NoTls,
         )
@@ -20,16 +20,21 @@ impl PostgresExecutor {
             }
         });
 
-        client
-            .query(format!("DROP VIEW IF EXISTS \"{}\"", name).as_str(), &[])
-            .await?;
-        client
-            .query(
-                format!("CREATE OR REPLACE VIEW \"{}\" AS ({})", name, query).as_str(),
-                &[],
+        let transaction = client.transaction().await?;
+        println!("{}", query);
+        transaction
+            .batch_execute(
+                format!(
+                    "DROP VIEW IF EXISTS \"{name}\";
+                    CREATE VIEW \"{name}\" AS ({query})",
+                    name = name,
+                    query = query
+                )
+                .as_str(),
             )
             .await?;
-        println!();
+
+        transaction.commit().await?;
 
         Ok(())
     }
