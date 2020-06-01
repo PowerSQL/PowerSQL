@@ -239,7 +239,11 @@ pub async fn main() -> Result<(), String> {
                 .collect();
             println!("Graph {:?}", graph);
 
-            let executor = execute::PostgresExecutor {};
+            let mut executor = execute::PostgresExecutor::new(
+                "postgresql://postgres:postgres@localhost:5432/postgres",
+            )
+            .await
+            .map_err(|_x| "Connection error")?;
 
             while let Some(m) = nodes.pop() {
                 println!("Executing {}", m);

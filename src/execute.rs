@@ -1,18 +1,14 @@
 use sqlparser::ast::Query;
 
-use tokio_postgres::{Error, NoTls};
+use tokio_postgres::{Client, Error, NoTls};
 
-#[derive(Copy, Clone)]
-pub struct PostgresExecutor {}
+pub struct PostgresExecutor {
+    client: Client,
+}
 
 impl PostgresExecutor {
-    pub async fn execute(self, name: &str, query: &Query) -> Result<(), Error> {
-        println!("Making connection");
-        let (mut client, connection) = tokio_postgres::connect(
-            "postgresql://postgres:postgres@localhost:5432/postgres",
-            NoTls,
-        )
-        .await?;
+    pub async fn new(url: &str) -> Result<PostgresExecutor, Error> {
+        let (client, connection) = tokio_postgres::connect(url, NoTls).await?;
 
         tokio::spawn(async move {
             if let Err(e) = connection.await {
@@ -20,7 +16,10 @@ impl PostgresExecutor {
             }
         });
 
-        let transaction = client.transaction().await?;
+        Ok(PostgresExecutor { client: client })
+    }
+    pub async fn execute(&mut self, name: &str, query: &Query) -> Result<(), Error> {
+        let transaction = self.client.transaction().await?;
         println!("{}", query);
         transaction
             .batch_execute(
