@@ -69,7 +69,6 @@ fn load_asts(models: &[String]) -> HashMap<String, Query> {
         .map(|x| {
             let sql = fs::read_to_string(x).unwrap();
 
-            //let ast = Parser::parse_sql(&dialect, sql).unwrap();
             let tokens = Tokenizer::new(&PowerSqlDialect {}, &sql)
                 .tokenize()
                 .unwrap();
@@ -265,7 +264,19 @@ pub async fn main() -> Result<(), String> {
             }
         }
         Command::Lint => unimplemented!(),
-        Command::Docs => unimplemented!(),
+        Command::Docs => {
+            let asts = load_asts(&models);
+
+            let mappings = get_mappings(&models);
+            let dependencies: HashMap<String, Vec<String>> = get_dependencies(&asts, &mappings);
+
+            let arrows: Vec<String> = dependencies
+                .iter()
+                .flat_map(|(x, y)| y.iter().map(move |z| format!("{z} -> {x}", x = x, z = z)))
+                .collect();
+
+            print!("{:?}", arrows);
+        }
     }
 
     Ok(())

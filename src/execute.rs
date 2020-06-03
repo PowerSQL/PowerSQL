@@ -21,11 +21,26 @@ impl PostgresExecutor {
     pub async fn execute(&mut self, name: &str, query: &Query) -> Result<(), Error> {
         let transaction = self.client.transaction().await?;
         println!("{}", query);
+
+        // let drop = Statement::Drop {
+        //     object_type: ObjectType::View,
+        //     if_exists: true,
+        //     names: vec![ObjectName(vec![name.to_string()])],
+        //     cascade: false,
+        // };
+        // let create = Statement::CreateView {
+        //     name: ObjectName(vec![name.to_string()]),
+        //     columns: vec![],
+        //     query: Box::new(query.clone()),
+        //     materialized: false,
+        //     with_options: vec![],
+        // };
+
         transaction
             .batch_execute(
                 format!(
                     "DROP VIEW IF EXISTS \"{name}\";
-                    CREATE VIEW \"{name}\" AS ({query})",
+                     CREATE VIEW \"{name}\" AS ({query})",
                     name = name,
                     query = query
                 )
