@@ -7,7 +7,8 @@ WITH
             123 as c
     )
 SELECT
-    b,
+    1 AS a,
+    2 AS b,
     c AS x
 FROM
     t

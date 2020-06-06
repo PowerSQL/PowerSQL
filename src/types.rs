@@ -36,7 +36,7 @@ fn expr_type(expr: &Expr) -> BaseType {
     }
 }
 
-pub fn get_model_type(query: &Query, _type_env: im::HashMap<String, TableType>) -> TableType {
+pub fn get_model_type(query: &Query, _type_env: &im::HashMap<String, TableType>) -> TableType {
     // TODO extend with CTES
     match &query.body {
         sqlparser::ast::SetExpr::Select(select) => {
@@ -64,18 +64,16 @@ pub fn get_model_type(query: &Query, _type_env: im::HashMap<String, TableType>) 
                 })
                 .collect();
 
-            let is_open = items.iter().any(|(x, _)| x == &"*");
-
             let map = items
                 .iter()
-                .filter(|(x, _)| x != &"*")
+                .filter(|(x, _)| x != "*")
                 .map(|(x, ty)| (x.to_string(), *ty))
                 .collect();
-            return if is_open {
+            if is_open {
                 TableType::Open(map)
             } else {
                 TableType::Closed(map)
-            };
+            }
         }
         _ => TableType::Open(HashMap::new()),
     }
@@ -96,7 +94,7 @@ pub fn get_model_type_test() {
         .unwrap();
     let mut parser = Parser::new(tokens);
     let query = parser.parse_query().unwrap();
-    let ty = get_model_type(&query, im::HashMap::new());
+    let ty = get_model_type(&query, &im::HashMap::new());
 
     assert_eq!(
         ty,
@@ -112,7 +110,7 @@ pub fn get_model_type_wildcard() {
         .unwrap();
     let mut parser = Parser::new(tokens);
     let query = parser.parse_query().unwrap();
-    let ty = get_model_type(&query, im::HashMap::new());
+    let ty = get_model_type(&query, &im::HashMap::new());
 
     assert_eq!(ty, TableType::Open(HashMap::with_capacity(0)))
 }
@@ -125,7 +123,7 @@ pub fn get_model_type_test_constants() {
         .unwrap();
     let mut parser = Parser::new(tokens);
     let query = parser.parse_query().unwrap();
-    let ty = get_model_type(&query, im::HashMap::new());
+    let ty = get_model_type(&query, &im::HashMap::new());
 
     assert_eq!(
         ty,

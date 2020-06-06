@@ -47,11 +47,7 @@ fn get_refs_set_expr(ctes: &SetExpr, vec: &mut Vec<String>) {
     match ctes {
         SetExpr::Query(q) => get_refs(q, vec),
         SetExpr::Select(s) => s.from.iter().for_each(|x| match &x.relation {
-            TableFactor::Table { name, .. } => {
-                if name.0[0].starts_with('@') {
-                    vec.push(name.0.join("."))
-                }
-            }
+            TableFactor::Table { name, .. } => vec.push(name.0.join(".")),
             _ => {}
         }),
         _ => {}
@@ -91,10 +87,9 @@ fn get_dependencies(
             get_refs(query, &mut x);
             let m = x
                 .iter()
-                .map(|y| {
+                .filter_map(|y| {
                     // TODO handle errors
-                    let s = y.trim_start_matches('@');
-                    (*mappings.get(s).unwrap()).to_string()
+                    mappings.get(y).map(|s| s.to_string())
                 })
                 .collect();
             (src.clone(), m)
@@ -210,8 +205,8 @@ pub async fn main() -> Result<(), String> {
         Command::Check => {
             let asts = load_asts(&models);
 
-            for (name, query) in asts.iter() {
-                let ty = types::get_model_type(query, im::HashMap::new());
+            for (name, query) in &asts {
+                let ty = types::get_model_type(query, &im::HashMap::new());
                 println!("{} {:?}", name, ty)
             }
 
@@ -288,7 +283,7 @@ extern crate maplit;
 
 #[test]
 fn test_dependencies() {
-    let sql = "select a from @t";
+    let sql = "select a from t";
     let tokens = Tokenizer::new(&PowerSqlDialect {}, &sql)
         .tokenize()
         .unwrap();

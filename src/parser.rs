@@ -3,8 +3,7 @@ pub struct PowerSqlDialect {}
 
 impl sqlparser::dialect::Dialect for PowerSqlDialect {
     fn is_identifier_start(&self, ch: char) -> bool {
-        // Ref (@) or normal identifier
-        (ch == '@') || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')
+        (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')
     }
 
     fn is_identifier_part(&self, ch: char) -> bool {

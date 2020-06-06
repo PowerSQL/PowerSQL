@@ -16,7 +16,7 @@ impl PostgresExecutor {
             }
         });
 
-        Ok(PostgresExecutor { client: client })
+        Ok(PostgresExecutor { client })
     }
     pub async fn execute(&mut self, name: &str, query: &Query) -> Result<(), Error> {
         let transaction = self.client.transaction().await?;
@@ -36,12 +36,14 @@ impl PostgresExecutor {
         //     with_options: vec![],
         // };
 
+        let base_name = name.trim_end_matches(".sql").split('/').last().unwrap();
+
         transaction
             .batch_execute(
                 format!(
-                    "DROP VIEW IF EXISTS \"{name}\";
+                    "DROP VIEW IF EXISTS \"{name}\" CASCADE;
                      CREATE VIEW \"{name}\" AS ({query})",
-                    name = name,
+                    name = base_name,
                     query = query
                 )
                 .as_str(),
