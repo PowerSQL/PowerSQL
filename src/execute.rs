@@ -1,5 +1,6 @@
 use sqlparser::ast::Query;
 
+use super::utils::base_name;
 use tokio_postgres::{Client, Error, NoTls};
 
 pub struct PostgresExecutor {
@@ -22,21 +23,7 @@ impl PostgresExecutor {
         let transaction = self.client.transaction().await?;
         println!("{}", query);
 
-        // let drop = Statement::Drop {
-        //     object_type: ObjectType::View,
-        //     if_exists: true,
-        //     names: vec![ObjectName(vec![name.to_string()])],
-        //     cascade: false,
-        // };
-        // let create = Statement::CreateView {
-        //     name: ObjectName(vec![name.to_string()]),
-        //     columns: vec![],
-        //     query: Box::new(query.clone()),
-        //     materialized: false,
-        //     with_options: vec![],
-        // };
-
-        let base_name = name.trim_end_matches(".sql").split('/').last().unwrap();
+        let base_name = base_name(name);
 
         transaction
             .batch_execute(

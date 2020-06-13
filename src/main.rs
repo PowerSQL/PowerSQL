@@ -1,6 +1,7 @@
 mod execute;
 mod parser;
 mod types;
+mod utils;
 use parser::PowerSqlDialect;
 use rayon::prelude::*;
 use serde_derive::Deserialize;
@@ -10,6 +11,8 @@ use sqlparser::tokenizer::Tokenizer;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
+use types::TableType;
+use utils::base_name;
 use walkdir::WalkDir;
 
 #[derive(Deserialize, Debug)]
@@ -203,19 +206,39 @@ pub async fn main() -> Result<(), String> {
 
     match opt.command {
         Command::Check => {
+            // TODO, reuse code with run
             let asts = load_asts(&models);
-
-            for (name, query) in &asts {
-                let ty = types::get_model_type(query, &im::HashMap::new());
-                println!("{} {:?}", name, ty)
-            }
 
             let mappings = get_mappings(&models);
             let dependencies: HashMap<String, Vec<String>> = get_dependencies(&asts, &mappings);
-
             detect_cycles(&dependencies)?;
 
-            println!("{} models loaded succesfully", asts.len());
+            let mut graph = build_graph(&dependencies)?;
+
+            let mut nodes: Vec<_> = graph
+                .iter()
+                .filter(|(_m, node)| node.live_parents == 0)
+                .map(|(x, _)| (*x).to_string())
+                .collect();
+
+            let mut ty_env = im::HashMap::new();
+
+            while let Some(m) = nodes.pop() {
+                println!("Checking {}", m);
+
+                let node = graph.get(m.as_str()).unwrap().clone();
+                let ty = types::get_model_type(asts.get(&m).unwrap(), &ty_env);
+                println!("{} {:?}", m, ty);
+                ty_env = ty_env.update(base_name(&m).to_string(), ty);
+                println!("ty_env {:?}", ty_env);
+                for n in node.next_nodes.iter() {
+                    let mut node = graph.get_mut(n.as_str()).unwrap();
+                    node.live_parents -= 1;
+                    if node.live_parents == 0 {
+                        nodes.push(n.to_string());
+                    }
+                }
+            }
         }
         Command::Run => {
             let asts = load_asts(&models);
@@ -231,7 +254,6 @@ pub async fn main() -> Result<(), String> {
                 .filter(|(_m, node)| node.live_parents == 0)
                 .map(|(x, _)| (*x).to_string())
                 .collect();
-            println!("Graph {:?}", graph);
 
             let mut executor = execute::PostgresExecutor::new(
                 "postgresql://postgres:postgres@localhost:5432/postgres",

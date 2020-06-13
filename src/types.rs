@@ -1,21 +1,25 @@
+use sqlparser::ast::DataType;
 use sqlparser::ast::Expr;
 use sqlparser::ast::Query;
 use sqlparser::ast::SelectItem;
 use sqlparser::ast::Value;
-
 use std::collections::HashMap;
-#[derive(Debug, Eq, PartialEq)]
+
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum TableType {
     // SELECT *,[...] FROM t
     Open(HashMap<String, BaseType>),
     // SELECT a, b, c FROM ts
     Closed(HashMap<String, BaseType>),
 }
+
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum BaseType {
     Any,
     String,
     Boolean,
+    Number,
+    Float,
     // Add all known types
 }
 
@@ -23,7 +27,17 @@ fn value_type(value: &Value) -> BaseType {
     match value {
         Value::Boolean(_) => BaseType::Boolean,
         Value::SingleQuotedString(_) => BaseType::String,
+        Value::Number(_) => BaseType::Number,
         // TODO extend
+        _ => BaseType::Any,
+    }
+}
+
+fn map_data_type(data_type: &DataType) -> BaseType {
+    match data_type {
+        DataType::Float(_) => BaseType::Float,
+        DataType::Boolean => BaseType::Boolean,
+        // TODO: extend
         _ => BaseType::Any,
     }
 }
@@ -31,16 +45,55 @@ fn value_type(value: &Value) -> BaseType {
 fn expr_type(expr: &Expr) -> BaseType {
     match expr {
         Expr::Value(v) => value_type(v),
+        Expr::Cast { expr, data_type } => map_data_type(&data_type),
         // TODO extend
         _ => BaseType::Any,
     }
 }
 
-pub fn get_model_type(query: &Query, _type_env: &im::HashMap<String, TableType>) -> TableType {
+pub fn get_model_type(query: &Query, type_env: &im::HashMap<String, TableType>) -> TableType {
     // TODO extend with CTES
     match &query.body {
         sqlparser::ast::SetExpr::Select(select) => {
             let mut is_open = false;
+
+            let mut identifiers = HashMap::new();
+
+            for table in select.from.iter() {
+                match &table.relation {
+                    sqlparser::ast::TableFactor::Table {
+                        name,
+                        alias,
+                        args,
+                        with_hints,
+                    } => {
+                        println!("name, {}", name);
+                        if let Some(ty) = type_env.get(&name.to_string()) {
+                            match ty {
+                                TableType::Open(s) => {
+                                    for (s, ty) in s {
+                                        identifiers.insert(s.clone(), ty);
+                                    }
+                                }
+                                TableType::Closed(s) => {
+                                    for (s, ty) in s {
+                                        identifiers.insert(s.clone(), ty);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    sqlparser::ast::TableFactor::Derived {
+                        lateral,
+                        subquery,
+                        alias,
+                    } => unimplemented!("Derived tables not supported"),
+                    sqlparser::ast::TableFactor::NestedJoin(_) => {
+                        unimplemented!("nested join not supported")
+                    }
+                }
+            }
+
             let items: Vec<(String, BaseType)> = select
                 .projection
                 .iter()
@@ -50,7 +103,10 @@ pub fn get_model_type(query: &Query, _type_env: &im::HashMap<String, TableType>)
                     }
                     SelectItem::UnnamedExpr(expr) => match expr {
                         // Todo get type from environment
-                        Expr::Identifier(id) => (id.to_string(), BaseType::Any),
+                        Expr::Identifier(id) => (
+                            id.to_string(),
+                            **identifiers.get(id).unwrap_or(&&BaseType::Any),
+                        ),
                         _ => ("*".to_string(), BaseType::Any),
                     },
                     // SelectItem::UnnamedExpr
@@ -75,7 +131,7 @@ pub fn get_model_type(query: &Query, _type_env: &im::HashMap<String, TableType>)
                 TableType::Closed(map)
             }
         }
-        _ => TableType::Open(HashMap::new()),
+        _ => unimplemented!("Not yet implemented"),
     }
 }
 
