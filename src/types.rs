@@ -42,9 +42,10 @@ fn map_data_type(data_type: &DataType) -> BaseType {
     }
 }
 
-fn expr_type(expr: &Expr) -> BaseType {
+fn expr_type(expr: &Expr, type_env: &HashMap<String, BaseType>) -> BaseType {
     match expr {
         Expr::Value(v) => value_type(v),
+        Expr::Identifier(s) => *type_env.get(s).unwrap_or(&BaseType::Any),
         Expr::Cast { expr, data_type } => map_data_type(&data_type),
         // TODO extend
         _ => BaseType::Any,
@@ -57,8 +58,10 @@ pub fn get_model_type(query: &Query, type_env: &im::HashMap<String, TableType>) 
         sqlparser::ast::SetExpr::Select(select) => {
             let mut is_open = false;
 
-            let mut identifiers = HashMap::new();
+            let mut local_type_env = HashMap::new();
 
+            // TODO optimize / simplify
+            // (Re-)se immutable hashmap?
             for table in select.from.iter() {
                 match &table.relation {
                     sqlparser::ast::TableFactor::Table {
@@ -67,17 +70,17 @@ pub fn get_model_type(query: &Query, type_env: &im::HashMap<String, TableType>) 
                         args,
                         with_hints,
                     } => {
-                        println!("name, {}", name);
+                        // TODO use alias to register name in environment
                         if let Some(ty) = type_env.get(&name.to_string()) {
                             match ty {
                                 TableType::Open(s) => {
                                     for (s, ty) in s {
-                                        identifiers.insert(s.clone(), ty);
+                                        local_type_env.insert(s.clone(), *ty);
                                     }
                                 }
                                 TableType::Closed(s) => {
                                     for (s, ty) in s {
-                                        identifiers.insert(s.clone(), ty);
+                                        local_type_env.insert(s.clone(), *ty);
                                     }
                                 }
                             }
@@ -99,14 +102,10 @@ pub fn get_model_type(query: &Query, type_env: &im::HashMap<String, TableType>) 
                 .iter()
                 .map(|x| match x {
                     SelectItem::ExprWithAlias { expr, alias } => {
-                        (alias.to_string(), expr_type(expr))
+                        (alias.to_string(), expr_type(expr, &local_type_env))
                     }
                     SelectItem::UnnamedExpr(expr) => match expr {
-                        // Todo get type from environment
-                        Expr::Identifier(id) => (
-                            id.to_string(),
-                            **identifiers.get(id).unwrap_or(&&BaseType::Any),
-                        ),
+                        Expr::Identifier(id) => (id.to_string(), expr_type(expr, &local_type_env)),
                         _ => ("*".to_string(), BaseType::Any),
                     },
                     // SelectItem::UnnamedExpr
