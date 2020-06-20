@@ -5,13 +5,12 @@ mod utils;
 use parser::PowerSqlDialect;
 use rayon::prelude::*;
 use serde_derive::Deserialize;
-use sqlparser::ast::{Cte, Query, SetExpr, TableFactor};
+use sqlparser::ast::{Cte, Query, SetExpr, Statement, TableFactor};
 use sqlparser::parser::Parser;
 use sqlparser::tokenizer::Tokenizer;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
-use types::TableType;
 use utils::base_name;
 use walkdir::WalkDir;
 
@@ -62,42 +61,48 @@ fn get_refs(query: &Query, vec: &mut Vec<String>) {
     get_refs_set_expr(&query.body, vec);
 }
 
-fn load_asts(models: &[String]) -> HashMap<String, Query> {
+fn load_asts(models: &[String]) -> HashMap<String, Statement> {
     models
         .par_iter()
         .map(|x| {
             let sql = fs::read_to_string(x).unwrap();
 
-            let tokens = Tokenizer::new(&PowerSqlDialect {}, &sql)
-                .tokenize()
-                .unwrap();
-            let mut parser = Parser::new(tokens);
-            // TODO handle parse error
-            let ast = parser.parse_query().unwrap();
+            // TODO Error handling
+            let statement = Parser::parse_sql(&PowerSqlDialect {}, sql).unwrap()[0].clone();
 
-            (x.clone(), ast)
+            let name = match &statement {
+                Statement::CreateView { name, .. } => name.0.join("."),
+                _ => unimplemented!("Only create (materialized) view supported "),
+            };
+
+            (name, statement)
         })
         .collect()
 }
 
-fn get_dependencies(
-    asts: &HashMap<String, Query>,
-    mappings: &HashMap<String, String>,
-) -> HashMap<String, Vec<String>> {
-    asts.iter()
-        .map(|(src, query)| {
+fn get_query(statement: &Statement) -> &Query {
+    match statement {
+        Statement::CreateView { query, .. } => &query,
+        _ => unreachable!("Did not expect non-view here"),
+    }
+}
+
+fn get_dependencies(asts: &HashMap<String, Statement>) -> HashMap<String, Vec<String>> {
+    return asts
+        .iter()
+        .map(|(src, stmt)| {
             let mut x = vec![];
-            get_refs(query, &mut x);
-            let m = x
-                .iter()
-                .filter_map(|y| {
-                    // TODO handle errors
-                    mappings.get(y).map(|s| s.to_string())
-                })
-                .collect();
-            (src.clone(), m)
+            let query = get_query(stmt);
+            get_refs(&query, &mut x);
+            (
+                src.clone(),
+                x.iter()
+                    .filter(|elem| asts.contains_key(*elem))
+                    .cloned()
+                    .collect(),
+            )
         })
-        .collect()
+        .collect();
 }
 
 fn detect_cycles(deps: &HashMap<String, Vec<String>>) -> Result<(), String> {
@@ -160,24 +165,6 @@ fn build_graph(deps: &HashMap<String, Vec<String>>) -> Result<HashMap<&str, Mode
     Ok(graph)
 }
 
-fn get_mappings(models: &[String]) -> HashMap<String, String> {
-    models
-        .iter()
-        .flat_map(|x| {
-            let parts: Vec<&str> = x.trim_end_matches(".sql").split('/').collect();
-            let mut res = Vec::with_capacity(parts.len() - 1);
-            let mut items = vec![];
-            for &p in parts.iter().rev().take(parts.len()) {
-                items.push(p);
-                let names: Vec<&str> = items.iter().copied().rev().collect();
-                let t = names.join(".");
-                res.push((t, x.clone()));
-            }
-            res
-        })
-        .collect()
-}
-
 #[tokio::main]
 pub async fn main() -> Result<(), String> {
     let opt = Opt::from_args();
@@ -209,8 +196,7 @@ pub async fn main() -> Result<(), String> {
             // TODO, reuse code with run
             let asts = load_asts(&models);
 
-            let mappings = get_mappings(&models);
-            let dependencies: HashMap<String, Vec<String>> = get_dependencies(&asts, &mappings);
+            let dependencies: HashMap<String, Vec<String>> = get_dependencies(&asts);
             detect_cycles(&dependencies)?;
 
             let mut graph = build_graph(&dependencies)?;
@@ -227,7 +213,7 @@ pub async fn main() -> Result<(), String> {
                 println!("Checking {}", m);
 
                 let node = graph.get(m.as_str()).unwrap().clone();
-                let ty = types::get_model_type(asts.get(&m).unwrap(), &ty_env);
+                let ty = types::get_model_type(get_query(asts.get(&m).unwrap()), &ty_env);
                 println!("{} {:?}", m, ty);
                 ty_env = ty_env.update(base_name(&m).to_string(), ty);
                 println!("ty_env {:?}", ty_env);
@@ -243,8 +229,8 @@ pub async fn main() -> Result<(), String> {
         Command::Run => {
             let asts = load_asts(&models);
 
-            let mappings = get_mappings(&models);
-            let dependencies: HashMap<String, Vec<String>> = get_dependencies(&asts, &mappings);
+            // let mappings = get_mappings(&models);
+            let dependencies: HashMap<String, Vec<String>> = get_dependencies(&asts);
             detect_cycles(&dependencies)?;
 
             let mut graph = build_graph(&dependencies)?;
@@ -284,8 +270,7 @@ pub async fn main() -> Result<(), String> {
         Command::Docs => {
             let asts = load_asts(&models);
 
-            let mappings = get_mappings(&models);
-            let dependencies: HashMap<String, Vec<String>> = get_dependencies(&asts, &mappings);
+            let dependencies: HashMap<String, Vec<String>> = get_dependencies(&asts);
 
             let arrows: Vec<String> = dependencies
                 .iter()
@@ -305,22 +290,12 @@ extern crate maplit;
 
 #[test]
 fn test_dependencies() {
-    let sql = "select a from t";
-    let tokens = Tokenizer::new(&PowerSqlDialect {}, &sql)
-        .tokenize()
-        .unwrap();
-    let mut parser = Parser::new(tokens);
-    let ast = parser.parse_query().unwrap();
+    let sql = "create materialized view x as select a from t";
+    let ast = Parser::parse_sql(&PowerSqlDialect {}, sql.to_string()).unwrap()[0].clone();
 
-    let x = get_dependencies(
-        &(vec![("x".to_string(), ast)].iter().cloned().collect()),
-        &(vec![("t".to_string(), "t.sql".to_string())]
-            .iter()
-            .cloned()
-            .collect()),
-    );
+    let x = get_dependencies(&hashmap! {"x".to_string() => ast});
 
-    assert_eq!(x, hashmap! {"x".to_string() => vec!["t.sql".to_string()]})
+    assert_eq!(x, hashmap! {"x".to_string() => vec![]})
 }
 
 #[test]
@@ -354,20 +329,6 @@ fn test_cycle_detection_ok() {
         }),
         Ok(_)
     ));
-}
-
-#[test]
-fn test_mappings() {
-    let models = vec!["a/b/c.sql".to_string()];
-    let mappings = get_mappings(&models);
-
-    assert_eq!(
-        mappings,
-        hashmap! {"c".to_string() => "a/b/c.sql".to_string(),
-            "b.c".to_string() => "a/b/c.sql".to_string(),
-            "a.b.c".to_string() => "a/b/c.sql".to_string()
-        }
-    )
 }
 
 #[test]

@@ -1,4 +1,4 @@
-use sqlparser::ast::Query;
+use sqlparser::ast::Statement;
 
 use super::utils::base_name;
 use tokio_postgres::{Client, Error, NoTls};
@@ -19,9 +19,9 @@ impl PostgresExecutor {
 
         Ok(PostgresExecutor { client })
     }
-    pub async fn execute(&mut self, name: &str, query: &Query) -> Result<(), Error> {
+    pub async fn execute(&mut self, name: &str, stmt: &Statement) -> Result<(), Error> {
         let transaction = self.client.transaction().await?;
-        println!("{}", query);
+        println!("{}", stmt);
 
         let base_name = base_name(name);
 
@@ -29,9 +29,9 @@ impl PostgresExecutor {
             .batch_execute(
                 format!(
                     "DROP VIEW IF EXISTS \"{name}\" CASCADE;
-                     CREATE VIEW \"{name}\" AS ({query})",
+                     {stmt}",
                     name = base_name,
-                    query = query
+                    stmt = stmt
                 )
                 .as_str(),
             )
