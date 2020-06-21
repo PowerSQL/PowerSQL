@@ -1,6 +1,5 @@
 use sqlparser::ast::Statement;
 
-use super::utils::base_name;
 use tokio_postgres::{Client, Error, NoTls};
 
 pub struct PostgresExecutor {
@@ -23,14 +22,12 @@ impl PostgresExecutor {
         let transaction = self.client.transaction().await?;
         println!("{}", stmt);
 
-        let base_name = base_name(name);
-
         transaction
             .batch_execute(
                 format!(
                     "DROP VIEW IF EXISTS \"{name}\" CASCADE;
                      {stmt}",
-                    name = base_name,
+                    name = name,
                     stmt = stmt
                 )
                 .as_str(),

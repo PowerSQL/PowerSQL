@@ -1,17 +1,14 @@
 mod execute;
 mod parser;
 mod types;
-mod utils;
 use parser::PowerSqlDialect;
 use rayon::prelude::*;
 use serde_derive::Deserialize;
 use sqlparser::ast::{Cte, Query, SetExpr, Statement, TableFactor};
 use sqlparser::parser::Parser;
-use sqlparser::tokenizer::Tokenizer;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
-use utils::base_name;
 use walkdir::WalkDir;
 
 #[derive(Deserialize, Debug)]
@@ -215,7 +212,7 @@ pub async fn main() -> Result<(), String> {
                 let node = graph.get(m.as_str()).unwrap().clone();
                 let ty = types::get_model_type(get_query(asts.get(&m).unwrap()), &ty_env);
                 println!("{} {:?}", m, ty);
-                ty_env = ty_env.update(base_name(&m).to_string(), ty);
+                ty_env = ty_env.update(m.to_string(), ty);
                 println!("ty_env {:?}", ty_env);
                 for n in node.next_nodes.iter() {
                     let mut node = graph.get_mut(n.as_str()).unwrap();
