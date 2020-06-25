@@ -46,7 +46,7 @@ fn get_refs_set_expr(ctes: &SetExpr, vec: &mut Vec<String>) {
     match ctes {
         SetExpr::Query(q) => get_refs(q, vec),
         SetExpr::Select(s) => s.from.iter().for_each(|x| match &x.relation {
-            TableFactor::Table { name, .. } => vec.push(name.0.join(".")),
+            TableFactor::Table { name, .. } => vec.push(format!("{}", name)),
             _ => {}
         }),
         _ => {}
@@ -65,11 +65,16 @@ fn load_asts(models: &[String]) -> HashMap<String, Statement> {
             let sql = fs::read_to_string(x).unwrap();
 
             // TODO Error handling
-            let statement = Parser::parse_sql(&PowerSqlDialect {}, sql).unwrap()[0].clone();
+            let statement = Parser::parse_sql(&PowerSqlDialect {}, &sql).unwrap()[0].clone();
 
             let name = match &statement {
-                Statement::CreateView { name, .. } => name.0.join("."),
-                _ => unimplemented!("Only create (materialized) view supported "),
+                Statement::CreateView { name, .. } => format!("{}", name),
+                Statement::CreateTable {
+                    name,
+                    query: Some(_),
+                    ..
+                } => format!("{}", name),
+                _ => unimplemented!("Only (materialized) view and create table as supported "),
             };
 
             (name, statement)
@@ -80,6 +85,9 @@ fn load_asts(models: &[String]) -> HashMap<String, Statement> {
 fn get_query(statement: &Statement) -> &Query {
     match statement {
         Statement::CreateView { query, .. } => &query,
+        Statement::CreateTable {
+            query: Some(query), ..
+        } => &query,
         _ => unreachable!("Did not expect non-view here"),
     }
 }
@@ -288,7 +296,7 @@ extern crate maplit;
 #[test]
 fn test_dependencies() {
     let sql = "create materialized view x as select a from t";
-    let ast = Parser::parse_sql(&PowerSqlDialect {}, sql.to_string()).unwrap()[0].clone();
+    let ast = Parser::parse_sql(&PowerSqlDialect {}, sql).unwrap()[0].clone();
 
     let x = get_dependencies(&hashmap! {"x".to_string() => ast});
 

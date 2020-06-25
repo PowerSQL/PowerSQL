@@ -45,7 +45,7 @@ fn map_data_type(data_type: &DataType) -> BaseType {
 fn expr_type(expr: &Expr, type_env: &HashMap<String, BaseType>) -> BaseType {
     match expr {
         Expr::Value(v) => value_type(v),
-        Expr::Identifier(s) => *type_env.get(s).unwrap_or(&BaseType::Any),
+        Expr::Identifier(s) => *type_env.get(&format!("{}", s)).unwrap_or(&BaseType::Any),
         Expr::Cast { expr, data_type } => map_data_type(&data_type),
         // TODO extend
         _ => BaseType::Any,

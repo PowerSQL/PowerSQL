@@ -1,4 +1,4 @@
-CREATE MATERIALIZED VIEW model AS
+CREATE TABLE model AS
 WITH t AS (
     SELECT
         'example' AS b,
