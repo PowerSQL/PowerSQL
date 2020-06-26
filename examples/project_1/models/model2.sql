@@ -3,4 +3,12 @@ SELECT
     a,
     b
 FROM
-    model
+    model;
+
+
+CREATE MATERIALIZED VIEW model3 AS
+SELECT
+    a,
+    b
+FROM
+    model2;

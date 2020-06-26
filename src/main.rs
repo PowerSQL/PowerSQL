@@ -61,23 +61,28 @@ fn get_refs(query: &Query, vec: &mut Vec<String>) {
 fn load_asts(models: &[String]) -> HashMap<String, Statement> {
     models
         .par_iter()
-        .map(|x| {
+        .flat_map(|x| {
             let sql = fs::read_to_string(x).unwrap();
 
             // TODO Error handling
-            let statement = Parser::parse_sql(&PowerSqlDialect {}, &sql).unwrap()[0].clone();
+            let statements = Parser::parse_sql(&PowerSqlDialect {}, &sql).unwrap();
 
-            let name = match &statement {
-                Statement::CreateView { name, .. } => format!("{}", name),
-                Statement::CreateTable {
-                    name,
-                    query: Some(_),
-                    ..
-                } => format!("{}", name),
-                _ => unimplemented!("Only (materialized) view and create table as supported "),
-            };
+            let mut res = vec![];
+            for statement in statements {
+                let name = match &statement {
+                    Statement::CreateView { name, .. } => format!("{}", name),
+                    Statement::CreateTable {
+                        name,
+                        query: Some(_),
+                        ..
+                    } => format!("{}", name),
+                    _ => unimplemented!("Only (materialized) view and create table as supported "),
+                };
 
-            (name, statement)
+                res.push((name, statement))
+            }
+
+            res
         })
         .collect()
 }
