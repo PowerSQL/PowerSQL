@@ -1,0 +1,29 @@
+[package]
+name = "powersql"
+version = "0.1.0"
+authors = ["Dandandan <danielheres@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+sqlparser = "0.5.1"
+walkdir = "2"
+toml = "*"
+serde = "*"
+serde_derive = "*"
+rayon = "*"
+structopt = "*"
+im = "*"
+
+tokio = { version = "*", features = ["full"] }
+tokio-postgres = "*"
+
+
+[dev-dependencies]
+criterion = "0.3"
+maplit = "*"
+
+[[bench]]
+name = "bench"
+harness = false

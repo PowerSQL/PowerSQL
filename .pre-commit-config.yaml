@@ -1,0 +1,36 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v3.0.0
+    hooks:
+    - id: check-merge-conflict
+    - id: end-of-file-fixer
+-   repo: local
+    hooks:
+    -   id: fmt
+        name: fmt
+        description: Format files with rustfmt.
+        entry: rustfmt --edition 2018 --
+        language: system
+        files: \.rs$
+        args: []
+    -   id: cargo-check
+        name: cargo check
+        description: Check the package for errors.
+        entry: cargo check
+        language: system
+        files: \.rs$
+        pass_filenames: false
+    -   id: cargo-test
+        name: cargo test
+        description: Run tests
+        entry: cargo test
+        language: system
+        files: \.rs$
+        pass_filenames: false
+    -   id: clippy
+        name: clippy
+        description: Lint rust sources
+        entry: cargo clippy -- -D warnings
+        language: system
+        files: \.rs$
+        pass_filenames: false
