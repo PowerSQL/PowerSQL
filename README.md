@@ -3,7 +3,8 @@
 
 <div align="center">
 <a href="https://github.com/Dandandan/PowerSQL/actions">
-![Rust](https://github.com/Dandandan/PowerSQL/workflows/Rust/badge.svg?branch=master)
+
+<img src="https://github.com/Dandandan/PowerSQL/workflows/Rust/badge.svg?branch=master"/>
 </a>
 </div>
 
