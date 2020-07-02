@@ -21,9 +21,4 @@ tokio-postgres = "*"
 
 
 [dev-dependencies]
-criterion = "0.3"
 maplit = "*"
-
-[[bench]]
-name = "bench"
-harness = false

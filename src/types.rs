@@ -46,7 +46,11 @@ fn expr_type(expr: &Expr, type_env: &HashMap<String, BaseType>) -> BaseType {
     match expr {
         Expr::Value(v) => value_type(v),
         Expr::Identifier(s) => *type_env.get(&format!("{}", s)).unwrap_or(&BaseType::Any),
-        Expr::Cast { expr, data_type } => map_data_type(&data_type),
+        // TODO check if expr can be casted to data type
+        Expr::Cast {
+            expr: _expr,
+            data_type,
+        } => map_data_type(&data_type),
         // TODO extend
         _ => BaseType::Any,
     }
@@ -64,12 +68,7 @@ pub fn get_model_type(query: &Query, type_env: &im::HashMap<String, TableType>) 
             // (Re-)se immutable hashmap?
             for table in select.from.iter() {
                 match &table.relation {
-                    sqlparser::ast::TableFactor::Table {
-                        name,
-                        alias,
-                        args,
-                        with_hints,
-                    } => {
+                    sqlparser::ast::TableFactor::Table { name, .. } => {
                         // TODO use alias to register name in environment
                         if let Some(ty) = type_env.get(&name.to_string()) {
                             match ty {
@@ -86,11 +85,9 @@ pub fn get_model_type(query: &Query, type_env: &im::HashMap<String, TableType>) 
                             }
                         }
                     }
-                    sqlparser::ast::TableFactor::Derived {
-                        lateral,
-                        subquery,
-                        alias,
-                    } => unimplemented!("Derived tables not supported"),
+                    sqlparser::ast::TableFactor::Derived { .. } => {
+                        unimplemented!("Derived tables not supported")
+                    }
                     sqlparser::ast::TableFactor::NestedJoin(_) => {
                         unimplemented!("nested join not supported")
                     }
