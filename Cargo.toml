@@ -1,10 +1,8 @@
 [package]
 name = "powersql"
 version = "0.1.0"
-authors = ["Dandandan <danielheres@gmail.com>"]
+authors = ["Daniël Heres <danielheres@gmail.com>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 sqlparser = "0.5.1"
@@ -18,7 +16,6 @@ im = "*"
 
 tokio = { version = "*", features = ["full"] }
 tokio-postgres = "*"
-
 
 [dev-dependencies]
 maplit = "*"
