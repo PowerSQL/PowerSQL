@@ -251,11 +251,9 @@ pub async fn main() -> Result<(), String> {
                 .map(|(x, _)| (*x).to_string())
                 .collect();
 
-            let mut executor = execute::PostgresExecutor::new(
-                "postgresql://postgres:postgres@localhost:5432/postgres",
-            )
-            .await
-            .map_err(|_x| "Connection error")?;
+            let mut executor = execute::PostgresExecutor::new()
+                .await
+                .map_err(|x| format!("Connection error: {}", x))?;
 
             while let Some(m) = nodes.pop() {
                 println!("Executing {}", m);
