@@ -20,4 +20,4 @@ tokio = { version = "0.2", features = ["full"] }
 tokio-postgres = "0.5"
 
 [dev-dependencies]
-maplit = "*"
+maplit = "1.0"
