@@ -25,3 +25,21 @@ Clone repository and install using `cargo`.
 ```
 cargo install --path .
 ```
+
+## PostgreSQL
+
+To get started with PostgreSQL, simply create a new project in a file called `powersql.toml`:
+
+```
+[project]
+name = "my_project"
+models = ["models"]
+```
+
+To run against the database, provide the following environment variables:
+
+- PG_HOSTNAME
+- PG_USERNAME
+- PG_PORT
+- PG_DATABASE
+- PG_PASSWORD
