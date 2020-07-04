@@ -2,7 +2,7 @@
 
 
 <div align="center">
-<a href="https://github.com/Dandandan/PowerSQL/actions">
+<a href="https://github.com/Dandandan/PowerSQL/actions?query=branch%3Amaster+workflow%3ARust">
 
 <img src="https://github.com/Dandandan/PowerSQL/workflows/Rust/badge.svg?branch=master"/>
 </a>
@@ -25,3 +25,21 @@ Clone repository and install using `cargo`.
 ```
 cargo install --path .
 ```
+
+## PostgreSQL
+
+To get started with PostgreSQL, simply create a new project in a file called `powersql.toml`:
+
+```
+[project]
+name = "my_project"
+models = ["models"]
+```
+
+To run against the database, provide the following environment variables:
+
+- PG_HOSTNAME
+- PG_USERNAME
+- PG_PORT
+- PG_DATABASE
+- PG_PASSWORD

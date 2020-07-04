@@ -1,5 +1,6 @@
 use sqlparser::ast::Statement;
 
+use std::env;
 use tokio_postgres::{Client, Error, NoTls};
 
 pub struct PostgresExecutor {
@@ -7,9 +8,25 @@ pub struct PostgresExecutor {
 }
 
 impl PostgresExecutor {
-    pub async fn new(url: &str) -> Result<PostgresExecutor, Error> {
-        let (client, connection) = tokio_postgres::connect(url, NoTls).await?;
+    pub async fn new() -> Result<PostgresExecutor, String> {
+        // TODO, simplify, use TLS
+        let hostname = env::var("PG_HOSTNAME").map_err(|_x| "PG_HOSTNAME not provided")?;
+        let username = env::var("PG_USERNAME").map_err(|_x| "PG_USERNAME not provided")?;
+        let port = env::var("PG_PORT").map_err(|_x| "PG_PORT not provided")?;
+        let database = env::var("PG_DATABASE").map_err(|_x| "PG_DATABASE not provided")?;
+        let password = env::var("PG_PASSWORD").map_err(|_x| "PG_PASSWORD not provided")?;
 
+        let url = format!(
+            "postgresql://{username}:{password}@{hostname}:{port}/{database}",
+            port = port,
+            username = username,
+            password = password,
+            hostname = hostname,
+            database = database,
+        );
+        let (client, connection) = tokio_postgres::connect(&url, NoTls)
+            .await
+            .map_err(|_x| "Failed to connect")?;
         tokio::spawn(async move {
             if let Err(e) = connection.await {
                 eprintln!("Connection error: {}", e);
