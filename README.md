@@ -2,7 +2,7 @@
 
 
 <div align="center">
-<a href="https://github.com/Dandandan/PowerSQL/actions">
+<a href="https://github.com/Dandandan/PowerSQL/actions?query=branch%3Amaster+workflow%3ARust">
 
 <img src="https://github.com/Dandandan/PowerSQL/workflows/Rust/badge.svg?branch=master"/>
 </a>
