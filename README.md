@@ -18,12 +18,12 @@ Features:
 * Automatically creates and executes a dependency graph.
 
 
-## Get started
+## Getting started
 
-Clone repository and install using `cargo`.
+Install the latest version using `cargo` (curl https://sh.rustup.rs -sSf | sh).
 
 ```
-cargo install --path .
+cargo install powersql
 ```
 
 ## PostgreSQL

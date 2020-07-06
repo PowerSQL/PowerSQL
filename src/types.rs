@@ -97,21 +97,26 @@ pub fn get_model_type(query: &Query, type_env: &im::HashMap<String, TableType>) 
             let items: Vec<(String, BaseType)> = select
                 .projection
                 .iter()
-                .map(|x| match x {
+                .flat_map(|x| match x {
                     SelectItem::ExprWithAlias { expr, alias } => {
-                        (alias.to_string(), expr_type(expr, &local_type_env))
+                        Some((alias.to_string(), expr_type(expr, &local_type_env)))
                     }
                     SelectItem::UnnamedExpr(expr) => match expr {
-                        Expr::Identifier(id) => (id.to_string(), expr_type(expr, &local_type_env)),
-                        _ => ("*".to_string(), BaseType::Any),
+                        Expr::Identifier(id) => {
+                            Some((id.to_string(), expr_type(expr, &local_type_env)))
+                        }
+                        _ => Some(("*".to_string(), BaseType::Any)),
                     },
                     // SelectItem::UnnamedExpr
                     // SelectItem::QualifiedWildcard
-                    // SelectItem::Wildcard
-                    // TODO wildcard from closed Table is closed
+                    SelectItem::Wildcard => {
+                        is_open = true;
+                        // TODO: add everything to local type environment
+                        None
+                    }
                     _ => {
                         is_open = true;
-                        ("*".to_string(), BaseType::Any)
+                        None
                     }
                 })
                 .collect();
@@ -180,5 +185,26 @@ pub fn get_model_type_test_constants() {
     assert_eq!(
         ty,
         TableType::Closed(hashmap! {"a".to_string() => BaseType::String})
+    )
+}
+
+#[test]
+pub fn get_type_from_table() {
+    let sql = "SELECT x AS a FROM t";
+    let tokens = Tokenizer::new(&PowerSqlDialect {}, &sql)
+        .tokenize()
+        .unwrap();
+    let mut parser = Parser::new(tokens);
+    let query = parser.parse_query().unwrap();
+    let ty = get_model_type(
+        &query,
+        &im::HashMap::from(hashmap! {"t".to_string()=>
+            TableType::Open(hashmap! {"x".to_string() => BaseType::Number})
+        }),
+    );
+
+    assert_eq!(
+        ty,
+        TableType::Closed(hashmap! {"a".to_string() => BaseType::Number})
     )
 }
