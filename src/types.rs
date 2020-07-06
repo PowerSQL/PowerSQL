@@ -56,14 +56,20 @@ fn expr_type(expr: &Expr, type_env: &HashMap<String, BaseType>) -> BaseType {
     }
 }
 
-pub fn get_model_type(query: &Query, type_env: &im::HashMap<String, TableType>) -> TableType {
-    // TODO extend with CTES
+pub fn get_model_type(
+    query: &Query,
+    mut type_env: im::HashMap<String, TableType>,
+) -> Result<TableType, String> {
+    for cte in query.ctes.iter() {
+        let ty = get_model_type(&cte.query, type_env.clone())?;
+        type_env = type_env.update(format!("{}", cte.alias), ty);
+    }
+
     match &query.body {
         sqlparser::ast::SetExpr::Select(select) => {
             let mut is_open = false;
 
             let mut local_type_env = HashMap::new();
-
             // TODO optimize / simplify
             // (Re-)se immutable hashmap?
             for table in select.from.iter() {
@@ -93,6 +99,7 @@ pub fn get_model_type(query: &Query, type_env: &im::HashMap<String, TableType>) 
                     }
                 }
             }
+            let mut errors = vec![];
 
             let items: Vec<(String, BaseType)> = select
                 .projection
@@ -105,7 +112,10 @@ pub fn get_model_type(query: &Query, type_env: &im::HashMap<String, TableType>) 
                         Expr::Identifier(id) => {
                             Some((id.to_string(), expr_type(expr, &local_type_env)))
                         }
-                        _ => Some(("*".to_string(), BaseType::Any)),
+                        _ => {
+                            errors.push("Unnamed identifiers not supported");
+                            None
+                        }
                     },
                     // SelectItem::UnnamedExpr
                     // SelectItem::QualifiedWildcard
@@ -121,18 +131,23 @@ pub fn get_model_type(query: &Query, type_env: &im::HashMap<String, TableType>) 
                 })
                 .collect();
 
+            if errors.len() > 0 {
+                // TODO return multiple errors
+                return Err(errors[0].to_string());
+            }
+
             let map = items
                 .iter()
                 .filter(|(x, _)| x != "*")
                 .map(|(x, ty)| (x.to_string(), *ty))
                 .collect();
             if is_open {
-                TableType::Open(map)
+                Ok(TableType::Open(map))
             } else {
-                TableType::Closed(map)
+                Ok(TableType::Closed(map))
             }
         }
-        _ => unimplemented!("Not yet implemented"),
+        _ => Err("Statement not yet implemented".to_string()),
     }
 }
 
@@ -151,11 +166,13 @@ pub fn get_model_type_test() {
         .unwrap();
     let mut parser = Parser::new(tokens);
     let query = parser.parse_query().unwrap();
-    let ty = get_model_type(&query, &im::HashMap::new());
+    let ty = get_model_type(&query, im::HashMap::new());
 
     assert_eq!(
         ty,
-        TableType::Closed(hashmap! {"a".to_string() => BaseType::Any})
+        Ok(TableType::Closed(
+            hashmap! {"a".to_string() => BaseType::Any}
+        ))
     )
 }
 
@@ -167,9 +184,9 @@ pub fn get_model_type_wildcard() {
         .unwrap();
     let mut parser = Parser::new(tokens);
     let query = parser.parse_query().unwrap();
-    let ty = get_model_type(&query, &im::HashMap::new());
+    let ty = get_model_type(&query, im::HashMap::new());
 
-    assert_eq!(ty, TableType::Open(HashMap::with_capacity(0)))
+    assert_eq!(ty, Ok(TableType::Open(HashMap::new())))
 }
 
 #[test]
@@ -180,11 +197,31 @@ pub fn get_model_type_test_constants() {
         .unwrap();
     let mut parser = Parser::new(tokens);
     let query = parser.parse_query().unwrap();
-    let ty = get_model_type(&query, &im::HashMap::new());
+    let ty = get_model_type(&query, im::HashMap::new());
 
     assert_eq!(
         ty,
-        TableType::Closed(hashmap! {"a".to_string() => BaseType::String})
+        Ok(TableType::Closed(
+            hashmap! {"a".to_string() => BaseType::String}
+        ))
+    )
+}
+
+#[test]
+pub fn get_model_type_test_() {
+    let sql = "WITH t AS (SELECT '1' AS a from q) SELECT a FROM t";
+    let tokens = Tokenizer::new(&PowerSqlDialect {}, &sql)
+        .tokenize()
+        .unwrap();
+    let mut parser = Parser::new(tokens);
+    let query = parser.parse_query().unwrap();
+    let ty = get_model_type(&query, im::HashMap::new());
+
+    assert_eq!(
+        ty,
+        Ok(TableType::Closed(
+            hashmap! {"a".to_string() => BaseType::String}
+        ))
     )
 }
 
@@ -198,13 +235,15 @@ pub fn get_type_from_table() {
     let query = parser.parse_query().unwrap();
     let ty = get_model_type(
         &query,
-        &im::HashMap::from(hashmap! {"t".to_string()=>
+        im::HashMap::from(hashmap! {"t".to_string()=>
             TableType::Open(hashmap! {"x".to_string() => BaseType::Number})
         }),
     );
 
     assert_eq!(
         ty,
-        TableType::Closed(hashmap! {"a".to_string() => BaseType::Number})
+        Ok(TableType::Closed(
+            hashmap! {"a".to_string() => BaseType::Number}
+        ))
     )
 }

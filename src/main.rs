@@ -223,9 +223,9 @@ pub async fn main() -> Result<(), String> {
                 println!("Checking {}", m);
 
                 let node = graph.get(m.as_str()).unwrap().clone();
-                let ty = types::get_model_type(get_query(asts.get(&m).unwrap()), &ty_env);
+                let ty = types::get_model_type(get_query(asts.get(&m).unwrap()), ty_env.clone());
                 println!("{} {:?}", m, ty);
-                ty_env = ty_env.update(m.to_string(), ty);
+                ty_env = ty_env.update(m.to_string(), ty?);
                 println!("ty_env {:?}", ty_env);
                 for n in node.next_nodes.iter() {
                     let mut node = graph.get_mut(n.as_str()).unwrap();
