@@ -62,7 +62,7 @@ pub fn get_model_type(
 ) -> Result<TableType, String> {
     for cte in query.ctes.iter() {
         let ty = get_model_type(&cte.query, type_env.clone())?;
-        type_env = type_env.update(format!("{}", cte.alias).to_string(), ty);
+        type_env = type_env.update(format!("{}", cte.alias), ty);
     }
 
     match &query.body {
@@ -192,6 +192,24 @@ pub fn get_model_type_wildcard() {
 #[test]
 pub fn get_model_type_test_constants() {
     let sql = "SELECT '1' AS a FROM t";
+    let tokens = Tokenizer::new(&PowerSqlDialect {}, &sql)
+        .tokenize()
+        .unwrap();
+    let mut parser = Parser::new(tokens);
+    let query = parser.parse_query().unwrap();
+    let ty = get_model_type(&query, im::HashMap::new());
+
+    assert_eq!(
+        ty,
+        Ok(TableType::Closed(
+            hashmap! {"a".to_string() => BaseType::String}
+        ))
+    )
+}
+
+#[test]
+pub fn get_model_type_test_() {
+    let sql = "WITH t AS (SELECT '1' AS a from q) SELECT a FROM t";
     let tokens = Tokenizer::new(&PowerSqlDialect {}, &sql)
         .tokenize()
         .unwrap();
