@@ -60,7 +60,6 @@ pub fn get_model_type(
     query: &Query,
     mut type_env: im::HashMap<String, TableType>,
 ) -> Result<TableType, String> {
-    // TODO extend with CTES
     for cte in query.ctes.iter() {
         let ty = get_model_type(&cte.query, type_env.clone())?;
         type_env = type_env.update(format!("{}", cte.alias).to_string(), ty);
