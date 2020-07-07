@@ -42,17 +42,34 @@ fn map_data_type(data_type: &DataType) -> BaseType {
     }
 }
 
-fn expr_type(expr: &Expr, type_env: &HashMap<String, BaseType>) -> BaseType {
+fn expr_type(
+    expr: &Expr,
+    type_env: &HashMap<String, BaseType>,
+    open: bool,
+) -> Result<BaseType, String> {
     match expr {
-        Expr::Value(v) => value_type(v),
-        Expr::Identifier(s) => *type_env.get(&format!("{}", s)).unwrap_or(&BaseType::Any),
+        Expr::Value(v) => Ok(value_type(v)),
+        Expr::Identifier(s) => {
+            if open {
+                Ok(*type_env.get(&format!("{}", s)).unwrap_or(&BaseType::Any))
+            } else {
+                type_env
+                    .get(&format!("{}", s))
+                    .map(|x| *x)
+                    .ok_or(format!("identifier {} not found", s).to_string())
+            }
+        }
         // TODO check if expr can be casted to data type
         Expr::Cast {
             expr: _expr,
             data_type,
-        } => map_data_type(&data_type),
+        } => {
+            let _ = expr_type(expr, type_env, open)?;
+            // TODO compatible / incompatible casting
+            return Ok(map_data_type(&data_type));
+        }
         // TODO extend
-        _ => BaseType::Any,
+        _ => Ok(BaseType::Any),
     }
 }
 
@@ -68,6 +85,7 @@ pub fn get_model_type(
     match &query.body {
         sqlparser::ast::SetExpr::Select(select) => {
             let mut is_open = false;
+            let mut unknown_sources = false;
 
             let mut local_type_env = HashMap::new();
             // TODO optimize / simplify
@@ -89,6 +107,8 @@ pub fn get_model_type(
                                     }
                                 }
                             }
+                        } else {
+                            unknown_sources = true;
                         }
                     }
                     sqlparser::ast::TableFactor::Derived { .. } => {
@@ -99,41 +119,27 @@ pub fn get_model_type(
                     }
                 }
             }
-            let mut errors = vec![];
+            let mut items = vec![];
 
-            let items: Vec<(String, BaseType)> = select
-                .projection
-                .iter()
-                .flat_map(|x| match x {
+            for p in &select.projection {
+                match p {
                     SelectItem::ExprWithAlias { expr, alias } => {
-                        Some((alias.to_string(), expr_type(expr, &local_type_env)))
+                        let ty = expr_type(&expr, &local_type_env, unknown_sources)?;
+                        items.push((alias.to_string(), ty));
                     }
                     SelectItem::UnnamedExpr(expr) => match expr {
                         Expr::Identifier(id) => {
-                            Some((id.to_string(), expr_type(expr, &local_type_env)))
+                            let ty = expr_type(&expr, &local_type_env, unknown_sources)?;
+                            items.push((id.to_string(), ty))
                         }
                         _ => {
-                            errors.push("Unnamed identifiers not supported");
-                            None
+                            Err("Unnamed expressions not supported")?;
                         }
                     },
-                    // SelectItem::UnnamedExpr
-                    // SelectItem::QualifiedWildcard
-                    SelectItem::Wildcard => {
-                        is_open = true;
-                        // TODO: add everything to local type environment
-                        None
-                    }
                     _ => {
                         is_open = true;
-                        None
                     }
-                })
-                .collect();
-
-            if errors.len() > 0 {
-                // TODO return multiple errors
-                return Err(errors[0].to_string());
+                }
             }
 
             let map = items

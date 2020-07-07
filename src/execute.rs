@@ -36,31 +36,26 @@ impl PostgresExecutor {
         Ok(PostgresExecutor { client })
     }
     pub async fn execute(&mut self, name: &str, stmt: &Statement) -> Result<(), Error> {
-        let is_table = self
+        let _ = self
             .client
             .execute(
-                "SELECT count(*) FROM pg_tables where tablename='model'",
+                format!("DROP VIEW IF EXISTS \"{name}\" CASCADE", name = name,).as_str(),
                 &[],
             )
-            .await?;
+            .await;
 
-        let view_or_table = if is_table == 1 { "TABLE" } else { "VIEW" };
-        let with_local = if is_table == 1 { "" } else { "WITH LOCAL" };
+        let _ = self
+            .client
+            .execute(
+                format!("DROP TABLE IF EXISTS \"{name}\" CASCADE", name = name,).as_str(),
+                &[],
+            )
+            .await;
 
         let transaction = self.client.transaction().await?;
 
         transaction
-            .batch_execute(
-                format!(
-                    "DROP {view_or_table} IF EXISTS \"{name}\" CASCADE {with_local};
-                     {stmt}",
-                    view_or_table = view_or_table,
-                    with_local = with_local,
-                    name = name,
-                    stmt = stmt
-                )
-                .as_str(),
-            )
+            .batch_execute(format!("{}", stmt).as_str())
             .await?;
 
         transaction.commit().await?;
