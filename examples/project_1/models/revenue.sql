@@ -1,5 +1,6 @@
 CREATE VIEW revenue AS
-SELECT product_id, euro
+SELECT CAST(product_id AS VARCHAR) product_id,
+    euro
 FROM product_sales;
 CREATE MATERIALIZED VIEW rev_per_product AS
 SELECT SUM(euro) AS rev,
