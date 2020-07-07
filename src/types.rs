@@ -37,6 +37,8 @@ fn map_data_type(data_type: &DataType) -> BaseType {
     match data_type {
         DataType::Float(_) => BaseType::Float,
         DataType::Boolean => BaseType::Boolean,
+        DataType::Varchar(_) => BaseType::String,
+        DataType::Text => BaseType::String,
         // TODO: extend
         _ => BaseType::Any,
     }
@@ -61,10 +63,10 @@ fn expr_type(
         }
         // TODO check if expr can be casted to data type
         Expr::Cast {
-            expr: _expr,
+            expr: cast_expr,
             data_type,
         } => {
-            let _ = expr_type(expr, type_env, open)?;
+            let _ = expr_type(cast_expr, type_env, open)?;
             // TODO compatible / incompatible casting
             return Ok(map_data_type(&data_type));
         }
@@ -250,6 +252,24 @@ pub fn get_type_from_table() {
         ty,
         Ok(TableType::Closed(
             hashmap! {"a".to_string() => BaseType::Number}
+        ))
+    )
+}
+
+#[test]
+pub fn get_cast_type() {
+    let sql = "SELECT CAST(x AS VARCHAR) AS b FROM t";
+    let tokens = Tokenizer::new(&PowerSqlDialect {}, &sql)
+        .tokenize()
+        .unwrap();
+    let mut parser = Parser::new(tokens);
+    let query = parser.parse_query().unwrap();
+    let ty = get_model_type(&query, im::HashMap::from(hashmap! {}));
+
+    assert_eq!(
+        ty,
+        Ok(TableType::Closed(
+            hashmap! {"b".to_string() => BaseType::String}
         ))
     )
 }
