@@ -3,8 +3,10 @@
 
 <div align="center">
 <a href="https://github.com/Dandandan/PowerSQL/actions?query=branch%3Amaster+workflow%3ARust">
-
 <img src="https://github.com/Dandandan/PowerSQL/workflows/Rust/badge.svg?branch=master"/>
+</a>
+<a href="https://crates.io/crates/powersql">
+<img src="https://img.shields.io/crates/v/powersql.svg" />
 </a>
 </div>
 
