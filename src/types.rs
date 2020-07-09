@@ -113,11 +113,11 @@ pub fn get_model_type(
                             unknown_sources = true;
                         }
                     }
-                    sqlparser::ast::TableFactor::Derived { .. } => {
-                        unimplemented!("Derived tables not supported")
-                    }
                     sqlparser::ast::TableFactor::NestedJoin(_) => {
                         unimplemented!("nested join not supported")
+                    }
+                    sqlparser::ast::TableFactor::Derived { .. } => {
+                        unimplemented!("Derived tables not supported")
                     }
                 }
             }

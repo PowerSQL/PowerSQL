@@ -42,13 +42,27 @@ fn get_refs_cte(cte: &Cte, vec: &mut Vec<String>) {
     get_refs(&cte.query, vec)
 }
 
+fn get_refs_table_factor(table_factor: &TableFactor, vec: &mut Vec<String>) {
+    match table_factor {
+        TableFactor::Table { name, .. } => vec.push(format!("{}", name)),
+        TableFactor::NestedJoin(nested_join) => {
+            get_refs_table_factor(&nested_join.relation, vec);
+
+            for join in nested_join.joins.iter() {
+                get_refs_table_factor(&join.relation, vec);
+            }
+        }
+        _ => {}
+    }
+}
+
 fn get_refs_set_expr(ctes: &SetExpr, vec: &mut Vec<String>) {
     match ctes {
         SetExpr::Query(q) => get_refs(q, vec),
-        SetExpr::Select(s) => s.from.iter().for_each(|x| match &x.relation {
-            TableFactor::Table { name, .. } => vec.push(format!("{}", name)),
-            _ => {}
-        }),
+        SetExpr::Select(s) => s
+            .from
+            .iter()
+            .for_each(|x| get_refs_table_factor(&x.relation, vec)),
         _ => {}
     }
 }
@@ -304,6 +318,22 @@ fn test_dependencies() {
     let x = get_dependencies(&hashmap! {"x".to_string() => ast});
 
     assert_eq!(x, hashmap! {"x".to_string() => vec![]})
+}
+
+#[test]
+fn test_dependencies_join() {
+    let sql =
+        "create materialized view x as select a from t join x on 1=1; create view t as select 1";
+    let ast = Parser::parse_sql(&PowerSqlDialect {}, sql).unwrap();
+
+    let x = get_dependencies(
+        &hashmap! {"x".to_string() => ast[0].clone(), "t".to_string() => ast[1].clone()},
+    );
+
+    assert_eq!(
+        x,
+        hashmap! {"x".to_string() => vec!["t".to_string()], "t".to_string() => vec![]}
+    );
 }
 
 #[test]
