@@ -2,9 +2,9 @@ use sqlparser::ast::DataType;
 use sqlparser::ast::Expr;
 use sqlparser::ast::Query;
 use sqlparser::ast::SelectItem;
+use sqlparser::ast::TableFactor;
 use sqlparser::ast::Value;
 use std::collections::HashMap;
-
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum TableType {
     // SELECT *,[...] FROM t
@@ -57,8 +57,8 @@ fn expr_type(
             } else {
                 type_env
                     .get(&format!("{}", s))
-                    .map(|x| *x)
-                    .ok_or(format!("identifier {} not found", s).to_string())
+                    .copied()
+                    .ok_or_else(|| format!("identifier {} not found", s))
             }
         }
         // TODO check if expr can be casted to data type
@@ -68,11 +68,53 @@ fn expr_type(
         } => {
             let _ = expr_type(cast_expr, type_env, open)?;
             // TODO compatible / incompatible casting
-            return Ok(map_data_type(&data_type));
+            Ok(map_data_type(&data_type))
         }
         // TODO extend
         _ => Ok(BaseType::Any),
     }
+}
+
+fn build_local_type_env(
+    type_env: &im::HashMap<String, TableType>,
+    local_type_env: &mut HashMap<String, BaseType>,
+    table_factor: &TableFactor,
+) -> bool {
+    let mut unknown_sources = false;
+
+    match table_factor {
+        TableFactor::Table { name, .. } => {
+            // TODO use alias to register name in environment
+            if let Some(ty) = type_env.get(&name.to_string()) {
+                match ty {
+                    TableType::Open(s) => {
+                        for (s, ty) in s {
+                            local_type_env.insert(s.clone(), *ty);
+                        }
+                    }
+                    TableType::Closed(s) => {
+                        for (s, ty) in s {
+                            local_type_env.insert(s.clone(), *ty);
+                        }
+                    }
+                }
+            } else {
+                unknown_sources = true;
+            }
+        }
+        TableFactor::NestedJoin(join) => {
+            unknown_sources =
+                unknown_sources || build_local_type_env(type_env, local_type_env, &join.relation);
+            unknown_sources = unknown_sources
+                || join
+                    .joins
+                    .iter()
+                    .map(|x| build_local_type_env(type_env, local_type_env, &x.relation))
+                    .any(|x| x);
+        }
+        TableFactor::Derived { .. } => unimplemented!("Derived tables not supported"),
+    }
+    unknown_sources
 }
 
 pub fn get_model_type(
@@ -83,7 +125,6 @@ pub fn get_model_type(
         let ty = get_model_type(&cte.query, type_env.clone())?;
         type_env = type_env.update(format!("{}", cte.alias), ty);
     }
-
     match &query.body {
         sqlparser::ast::SetExpr::Select(select) => {
             let mut is_open = false;
@@ -91,35 +132,15 @@ pub fn get_model_type(
 
             let mut local_type_env = HashMap::new();
             // TODO optimize / simplify
-            // (Re-)se immutable hashmap?
+            // (Re-)use immutable hashmap?
+
             for table in select.from.iter() {
-                match &table.relation {
-                    sqlparser::ast::TableFactor::Table { name, .. } => {
-                        // TODO use alias to register name in environment
-                        if let Some(ty) = type_env.get(&name.to_string()) {
-                            match ty {
-                                TableType::Open(s) => {
-                                    for (s, ty) in s {
-                                        local_type_env.insert(s.clone(), *ty);
-                                    }
-                                }
-                                TableType::Closed(s) => {
-                                    for (s, ty) in s {
-                                        local_type_env.insert(s.clone(), *ty);
-                                    }
-                                }
-                            }
-                        } else {
-                            unknown_sources = true;
-                        }
-                    }
-                    sqlparser::ast::TableFactor::Derived { .. } => {
-                        unimplemented!("Derived tables not supported")
-                    }
-                    sqlparser::ast::TableFactor::NestedJoin(_) => {
-                        unimplemented!("nested join not supported")
-                    }
+                for join in table.joins.iter() {
+                    unknown_sources = unknown_sources
+                        || build_local_type_env(&type_env, &mut local_type_env, &join.relation);
                 }
+                unknown_sources = unknown_sources
+                    || build_local_type_env(&type_env, &mut local_type_env, &table.relation);
             }
             let mut items = vec![];
 
@@ -155,6 +176,7 @@ pub fn get_model_type(
                 Ok(TableType::Closed(map))
             }
         }
+        sqlparser::ast::SetExpr::Query(query) => get_model_type(query, type_env),
         _ => Err("Statement not yet implemented".to_string()),
     }
 }
@@ -229,6 +251,24 @@ pub fn get_model_type_test_() {
         ty,
         Ok(TableType::Closed(
             hashmap! {"a".to_string() => BaseType::String}
+        ))
+    )
+}
+#[test]
+pub fn get_model_type_join() {
+    let sql =
+        "WITH t AS (SELECT '1' AS a), u AS (SELECT '1' AS b) SELECT a, b FROM t JOIN u ON 1=1";
+    let tokens = Tokenizer::new(&PowerSqlDialect {}, &sql)
+        .tokenize()
+        .unwrap();
+    let mut parser = Parser::new(tokens);
+    let query = parser.parse_query().unwrap();
+    let ty = get_model_type(&query, im::HashMap::new());
+
+    assert_eq!(
+        ty,
+        Ok(TableType::Closed(
+            hashmap! {"a".to_string() => BaseType::String, "b".to_string() => BaseType::String},
         ))
     )
 }
