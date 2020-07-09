@@ -57,8 +57,8 @@ fn expr_type(
             } else {
                 type_env
                     .get(&format!("{}", s))
-                    .map(|x| *x)
-                    .ok_or(format!("identifier {} not found", s).to_string())
+                    .copied()
+                    .ok_or_else(|| format!("identifier {} not found", s))
             }
         }
         // TODO check if expr can be casted to data type
@@ -68,7 +68,7 @@ fn expr_type(
         } => {
             let _ = expr_type(cast_expr, type_env, open)?;
             // TODO compatible / incompatible casting
-            return Ok(map_data_type(&data_type));
+            Ok(map_data_type(&data_type))
         }
         // TODO extend
         _ => Ok(BaseType::Any),

@@ -112,8 +112,7 @@ fn get_query(statement: &Statement) -> &Query {
 }
 
 fn get_dependencies(asts: &HashMap<String, Statement>) -> HashMap<String, Vec<String>> {
-    return asts
-        .iter()
+    asts.iter()
         .map(|(src, stmt)| {
             let mut x = vec![];
             let query = get_query(stmt);
@@ -126,7 +125,7 @@ fn get_dependencies(asts: &HashMap<String, Statement>) -> HashMap<String, Vec<St
                     .collect(),
             )
         })
-        .collect();
+        .collect()
 }
 
 fn detect_cycles(deps: &HashMap<String, Vec<String>>) -> Result<(), String> {
