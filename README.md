@@ -43,9 +43,6 @@ Now create one or more models
 ```sql
 CREATE VIEW my_model AS SELECT id, category from my_source;
 CREATE TABLE category_stats AS SELECT COUNT(*) FROM my_model GROUP BY my_source;
-
-
-
 ```
 
 PowerSQL automatically will create a DAG based on the relations in your database.
@@ -58,5 +55,8 @@ To run against the database, provide the following environment variables:
 - PG_DATABASE
 - PG_PASSWORD
 
+## Commands
 
+- `powersql check`: This will load all your `.sql` files in the directories listed in `models`. It will check the syntax of the SQL statements. After this, it will check the DAG and report if there is a circular dependency. Finally, it will run a type checker and report any type errors.
+- `powersql run`: Loads and runs the entire DAG of SQL statements.
 
