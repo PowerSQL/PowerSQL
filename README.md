@@ -42,7 +42,7 @@ Now create one or more models
 
 ```sql
 CREATE VIEW my_model AS SELECT id, category from my_source;
-CREATE TABLE category_stats AS SELECT COUNT(*) FROM my_model GROUP BY my_source;
+CREATE TABLE category_stats AS SELECT COUNT(*) category_count FROM my_model GROUP BY category;
 ```
 
 PowerSQL automatically will create a DAG based on the relations in your database.
