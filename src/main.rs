@@ -52,7 +52,11 @@ fn get_refs_table_factor(table_factor: &TableFactor, vec: &mut Vec<String>) {
                 get_refs_table_factor(&join.relation, vec);
             }
         }
-        _ => {}
+        TableFactor::Derived {
+            subquery: query, ..
+        } => {
+            get_refs(query, vec);
+        }
     }
 }
 

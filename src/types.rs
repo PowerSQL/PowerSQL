@@ -76,10 +76,10 @@ fn expr_type(
 }
 
 fn build_local_type_env(
-    type_env: &im::HashMap<String, TableType>,
+    mut type_env: im::HashMap<String, TableType>,
     local_type_env: &mut HashMap<String, BaseType>,
     table_factor: &TableFactor,
-) -> bool {
+) -> Result<(bool, im::HashMap<String, TableType>), String> {
     let mut unknown_sources = false;
 
     match table_factor {
@@ -103,18 +103,29 @@ fn build_local_type_env(
             }
         }
         TableFactor::NestedJoin(join) => {
-            unknown_sources =
-                unknown_sources || build_local_type_env(type_env, local_type_env, &join.relation);
-            unknown_sources = unknown_sources
-                || join
-                    .joins
-                    .iter()
-                    .map(|x| build_local_type_env(type_env, local_type_env, &x.relation))
-                    .any(|x| x);
+            let (unknow_sources_2, n_type_env) =
+                build_local_type_env(type_env.clone(), local_type_env, &join.relation)?;
+            type_env = n_type_env;
+            unknown_sources = unknown_sources || unknow_sources_2;
+
+            for j in join.joins.iter() {
+                let (unknow_sources_2, n_type_env) =
+                    build_local_type_env(type_env.clone(), local_type_env, &j.relation)?;
+                type_env = n_type_env;
+                unknown_sources = unknown_sources || unknow_sources_2;
+            }
         }
-        TableFactor::Derived { .. } => unimplemented!("Derived tables not supported"),
+        TableFactor::Derived {
+            subquery,
+            alias: Some(alias),
+            ..
+        } => {
+            let ty = get_model_type(subquery, type_env.clone())?;
+            type_env = type_env.update(format!("{}", alias.name), ty);
+        }
+        TableFactor::Derived { .. } => Err("Derived tables should have alias".to_string())?,
     }
-    unknown_sources
+    Ok((unknown_sources, type_env))
 }
 
 pub fn get_model_type(
@@ -136,11 +147,15 @@ pub fn get_model_type(
 
             for table in select.from.iter() {
                 for join in table.joins.iter() {
-                    unknown_sources = unknown_sources
-                        || build_local_type_env(&type_env, &mut local_type_env, &join.relation);
+                    let (unknow_sources_2, n_type_env) =
+                        build_local_type_env(type_env, &mut local_type_env, &join.relation)?;
+                    type_env = n_type_env;
+                    unknown_sources = unknown_sources || unknow_sources_2;
                 }
-                unknown_sources = unknown_sources
-                    || build_local_type_env(&type_env, &mut local_type_env, &table.relation);
+                let (unknow_sources_2, n_type_env) =
+                    build_local_type_env(type_env, &mut local_type_env, &table.relation)?;
+                type_env = n_type_env;
+                unknown_sources = unknown_sources || unknow_sources_2;
             }
             let mut items = vec![];
 
