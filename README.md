@@ -38,6 +38,18 @@ name = "my_project"
 models = ["models"]
 ```
 
+Now create one or more models
+
+```sql
+CREATE VIEW my_model AS SELECT id, category from my_source;
+CREATE TABLE category_stats AS SELECT COUNT(*) FROM my_model GROUP BY my_source;
+
+
+
+```
+
+PowerSQL automatically will create a DAG based on the relations in your database.
+
 To run against the database, provide the following environment variables:
 
 - PG_HOSTNAME
@@ -45,3 +57,6 @@ To run against the database, provide the following environment variables:
 - PG_PORT
 - PG_DATABASE
 - PG_PASSWORD
+
+
+
