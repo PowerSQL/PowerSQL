@@ -1,5 +1,7 @@
 # PowerSQL
 
+[![Join the chat at https://gitter.im/PowerSQL/community](https://badges.gitter.im/PowerSQL/community.svg)](https://gitter.im/PowerSQL/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 
 <div align="center">
 <a href="https://github.com/Dandandan/PowerSQL/actions?query=branch%3Amaster+workflow%3ARust">
