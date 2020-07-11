@@ -1,6 +1,6 @@
 [package]
 name = "powersql"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["Daniël Heres <danielheres@gmail.com>"]
 edition = "2018"
 description = "Data transformation tool using SQL"
@@ -10,9 +10,9 @@ license = "MIT"
 sqlparser = "0.5.1"
 walkdir = "2"
 toml = "0.5"
-serde = "1.0"
-serde_derive = "1.0"
-rayon = "1.3"
+serde = "1"
+serde_derive = "1"
+rayon = "1"
 structopt = "0.3"
 im = "15"
 
