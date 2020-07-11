@@ -36,9 +36,10 @@ To get started with PostgreSQL, simply create a new project in a file called `po
 [project]
 name = "my_project"
 models = ["models"]
+tests = ["tests]
 ```
 
-Now create one or more models
+Now create one or more models in the `models` directory:
 
 ```sql
 CREATE VIEW my_model AS SELECT id, category from my_source;
@@ -59,4 +60,22 @@ To run against the database, provide the following environment variables:
 
 - `powersql check`: This will load all your `.sql` files in the directories listed in `models`. It will check the syntax of the SQL statements. After this, it will check the DAG and report if there is a circular dependency. Finally, it will run a type checker and report any type errors.
 - `powersql run`: Loads and runs the entire DAG of SQL statements.
+- `powersql test`: Loads and runs the data tests.
 
+## Data tests
+
+Data tests are SQL queries that you can run on your database tables and views and perform checks on data quality, recency, etc.
+The test fails if the query returns 1 or more rows. 
+
+Some examples:
+```sql
+-- NULL check
+SELECT 1 FROM t WHERE column IS NULL;
+-- Check values
+SELECT 1 FROM t WHERE amount < 0;
+-- Check relations
+SELECT 1 FROM t LEFT JOIN u ON t.id = u.id WHERE u.id IS NULL;
+-- Prefix check
+SELECT 1 FROM t WHERE NOT STARTS_WITH(str_column, "http");
+
+```
