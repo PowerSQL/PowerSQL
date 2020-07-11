@@ -217,15 +217,12 @@ pub async fn main() -> Result<(), String> {
             }
         }
     }
+    let asts = load_asts(&models);
+    let dependencies: HashMap<String, Vec<String>> = get_dependencies(&asts);
+    detect_cycles(&dependencies)?;
 
     match opt.command {
         Command::Check => {
-            // TODO, reuse code with run
-            let asts = load_asts(&models);
-
-            let dependencies: HashMap<String, Vec<String>> = get_dependencies(&asts);
-            detect_cycles(&dependencies)?;
-
             let mut graph = build_graph(&dependencies)?;
 
             let mut nodes: Vec<_> = graph
@@ -254,12 +251,6 @@ pub async fn main() -> Result<(), String> {
             }
         }
         Command::Run => {
-            let asts = load_asts(&models);
-
-            // let mappings = get_mappings(&models);
-            let dependencies: HashMap<String, Vec<String>> = get_dependencies(&asts);
-            detect_cycles(&dependencies)?;
-
             let mut graph = build_graph(&dependencies)?;
 
             let mut nodes: Vec<_> = graph
@@ -293,10 +284,6 @@ pub async fn main() -> Result<(), String> {
         }
         Command::Lint => unimplemented!(),
         Command::Docs => {
-            let asts = load_asts(&models);
-
-            let dependencies: HashMap<String, Vec<String>> = get_dependencies(&asts);
-
             let arrows: Vec<String> = dependencies
                 .iter()
                 .flat_map(|(x, y)| y.iter().map(move |z| format!("{z} -> {x}", x = x, z = z)))
