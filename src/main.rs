@@ -120,7 +120,7 @@ fn load_tests(models: &[String]) -> Vec<Statement> {
             for statement in statements {
                 let query = match statement {
                     q @ Statement::Query(_) => q,
-                    _ => unimplemented!("Only test supported "),
+                    _ => unimplemented!("Only queries are supported in test files"),
                 };
                 res.push(query)
             }
