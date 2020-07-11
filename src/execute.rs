@@ -1,7 +1,7 @@
 use sqlparser::ast::Statement;
 
 use std::env;
-use tokio_postgres::{Client, Error, NoTls};
+use tokio_postgres::{Client, Error, NoTls, Row};
 
 pub struct PostgresExecutor {
     client: Client,
@@ -61,5 +61,12 @@ impl PostgresExecutor {
         transaction.commit().await?;
 
         Ok(())
+    }
+
+    pub async fn query(&mut self, query: &str) -> Result<Vec<Row>, String> {
+        self.client
+            .query(query, &[])
+            .await
+            .map_err(|x| format!("Failed to run query {}", x))
     }
 }

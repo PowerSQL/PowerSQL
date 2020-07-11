@@ -19,6 +19,7 @@ struct PowerSqlConfig {
 struct Project {
     name: String,
     models: Vec<String>,
+    tests: Option<Vec<String>>,
 }
 
 use structopt::StructOpt;
@@ -28,6 +29,7 @@ enum Command {
     Run,
     Lint,
     Docs,
+    Test,
 }
 
 #[derive(Debug, StructOpt)]
@@ -100,6 +102,28 @@ fn load_asts(models: &[String]) -> HashMap<String, Statement> {
                 res.push((name, statement))
             }
 
+            res
+        })
+        .collect()
+}
+
+fn load_tests(models: &[String]) -> Vec<Statement> {
+    models
+        .par_iter()
+        .flat_map(|x| {
+            let sql = fs::read_to_string(x).unwrap();
+
+            // TODO Error handling
+            let statements = Parser::parse_sql(&PowerSqlDialect {}, &sql).unwrap();
+
+            let mut res = vec![];
+            for statement in statements {
+                let query = match statement {
+                    q @ Statement::Query(_) => q,
+                    _ => unimplemented!("Only queries are supported in test files"),
+                };
+                res.push(query)
+            }
             res
         })
         .collect()
@@ -290,6 +314,40 @@ pub async fn main() -> Result<(), String> {
                 .collect();
 
             print!("{:?}", arrows);
+        }
+        Command::Test => {
+            let mut tests_models = vec![];
+            if let Some(tests) = config.project.tests {
+                for dir in tests {
+                    for entry in WalkDir::new(dir.to_string()) {
+                        let entry = entry.unwrap();
+                        if let Some(ext) = entry.path().extension() {
+                            {
+                                if ext == "sql" {
+                                    tests_models.push(entry.path().to_str().unwrap().to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                println!("No tests defined in powersql.toml");
+            }
+            let tests = load_tests(&tests_models);
+            let mut executor = execute::PostgresExecutor::new()
+                .await
+                .map_err(|x| format!("Connection error: {}", x))?;
+
+            for test in tests {
+                let test_query = format!("SELECT COUNT(*) FROM ({:}) AS T", test);
+                let rows = executor.query(test_query.as_str()).await?;
+                let value: i64 = rows[0].get(0);
+                if value > 0 {
+                    println!("{:} errors in {:}", value, test);
+                } else {
+                    println!("OK");
+                }
+            }
         }
     }
 
