@@ -8,6 +8,9 @@
 <a href="https://crates.io/crates/powersql">
 <img src="https://img.shields.io/crates/v/powersql.svg" />
 </a>
+<a href="https://gitter.im/PowerSQL/community">
+<img src="https://badges.gitter.im/PowerSQL/community.svg" />
+</a>
 </div>
 
 PowerSQL, **the** data transformation tool.
@@ -65,7 +68,7 @@ To run against the database, provide the following environment variables:
 ## Data tests
 
 Data tests are SQL queries that you can run on your database tables and views and perform checks on data quality, recency, etc.
-The test fails if the query returns 1 or more rows. 
+The test fails if the query returns 1 or more rows.
 
 Some examples:
 ```sql
