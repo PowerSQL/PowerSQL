@@ -135,7 +135,8 @@ fn get_query(statement: &Statement) -> &Query {
         Statement::CreateTable {
             query: Some(query), ..
         } => &query,
-        _ => unreachable!("Did not expect non-view here"),
+        Statement::Query(q) => q,
+        _ => unreachable!("Expected view, table, of query in fn get_query"),
     }
 }
 
@@ -272,6 +273,27 @@ pub async fn main() -> Result<(), String> {
                         nodes.push(n.to_string());
                     }
                 }
+            }
+            // TODO reuse test code
+            let mut tests_models = vec![];
+            if let Some(tests) = config.project.tests {
+                for dir in tests {
+                    for entry in WalkDir::new(dir.to_string()) {
+                        let entry = entry.unwrap();
+                        if let Some(ext) = entry.path().extension() {
+                            {
+                                if ext == "sql" {
+                                    tests_models.push(entry.path().to_str().unwrap().to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            let tests = load_tests(&tests_models);
+
+            for test in tests {
+                types::get_model_type(get_query(&test), ty_env.clone())?;
             }
         }
         Command::Run => {

@@ -170,9 +170,7 @@ pub fn get_model_type(
                             let ty = expr_type(&expr, &local_type_env, unknown_sources)?;
                             items.push((id.to_string(), ty))
                         }
-                        _ => {
-                            Err("Unnamed expressions not supported")?;
-                        }
+                        _ => {}
                     },
                     _ => {
                         is_open = true;
