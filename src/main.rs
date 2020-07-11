@@ -135,7 +135,8 @@ fn get_query(statement: &Statement) -> &Query {
         Statement::CreateTable {
             query: Some(query), ..
         } => &query,
-        _ => unreachable!("Did not expect non-view here"),
+        Statement::Query(q) => q,
+        _ => unreachable!("Expected view, table, of query in fn get_query"),
     }
 }
 
@@ -216,6 +217,25 @@ fn build_graph(deps: &HashMap<String, Vec<String>>) -> Result<HashMap<&str, Mode
     Ok(graph)
 }
 
+fn find_test_files(tests: Option<Vec<String>>) -> Vec<String> {
+    let mut tests_models = vec![];
+    if let Some(tests) = tests {
+        for dir in tests {
+            for entry in WalkDir::new(dir.to_string()) {
+                let entry = entry.unwrap();
+                if let Some(ext) = entry.path().extension() {
+                    {
+                        if ext == "sql" {
+                            tests_models.push(entry.path().to_str().unwrap().to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return tests_models;
+}
+
 #[tokio::main]
 pub async fn main() -> Result<(), String> {
     let opt = Opt::from_args();
@@ -273,6 +293,12 @@ pub async fn main() -> Result<(), String> {
                     }
                 }
             }
+            let test_models = find_test_files(config.project.tests);
+            let tests = load_tests(&test_models);
+
+            for test in tests {
+                types::get_model_type(get_query(&test), ty_env.clone())?;
+            }
         }
         Command::Run => {
             let mut graph = build_graph(&dependencies)?;
@@ -316,24 +342,8 @@ pub async fn main() -> Result<(), String> {
             print!("{:?}", arrows);
         }
         Command::Test => {
-            let mut tests_models = vec![];
-            if let Some(tests) = config.project.tests {
-                for dir in tests {
-                    for entry in WalkDir::new(dir.to_string()) {
-                        let entry = entry.unwrap();
-                        if let Some(ext) = entry.path().extension() {
-                            {
-                                if ext == "sql" {
-                                    tests_models.push(entry.path().to_str().unwrap().to_string());
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
-                println!("No tests defined in powersql.toml");
-            }
-            let tests = load_tests(&tests_models);
+            let test_models = find_test_files(config.project.tests);
+            let tests = load_tests(&test_models);
             let mut executor = execute::PostgresExecutor::new()
                 .await
                 .map_err(|x| format!("Connection error: {}", x))?;
