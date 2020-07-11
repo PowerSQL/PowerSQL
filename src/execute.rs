@@ -67,6 +67,6 @@ impl PostgresExecutor {
         self.client
             .query(query, &[])
             .await
-            .map_err(|_x| "Failed to run query".to_string())
+            .map_err(|x| format!("Failed to run query {}", x))
     }
 }

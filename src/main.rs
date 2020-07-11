@@ -338,12 +338,12 @@ pub async fn main() -> Result<(), String> {
                 .await
                 .map_err(|x| format!("Connection error: {}", x))?;
 
-            for (file, test) in tests_models.iter().zip(tests) {
+            for test in tests {
                 let test_query = format!("SELECT COUNT(*) FROM ({:}) AS T", test);
                 let rows = executor.query(test_query.as_str()).await?;
                 let value: i64 = rows[0].get(0);
                 if value > 0 {
-                    println!("{:} errors in {:}: {:}", value, file, test);
+                    println!("{:} errors in {:}", value, test);
                 } else {
                     println!("OK");
                 }
