@@ -2,3 +2,4 @@
 [project]
 name = "project_1"
 models = ["models"]
+tests = ["tests"]
