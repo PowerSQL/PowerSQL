@@ -1,6 +1,6 @@
 [package]
 name = "powersql"
-version = "0.1.6"
+version = "0.1.7"
 authors = ["Daniël Heres <danielheres@gmail.com>"]
 edition = "2018"
 description = "Data transformation tool using SQL"
