@@ -642,7 +642,7 @@ dependencies = [
 
 [[package]]
 name = "powersql"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "im",
  "maplit",
