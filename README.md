@@ -25,7 +25,7 @@ Features:
 
 ## Getting started
 
-Install the latest version using `cargo` (curl https://sh.rustup.rs -sSf | sh).
+Install the latest version using `cargo` (`curl https://sh.rustup.rs -sSf | sh`).
 
 ```
 cargo install powersql
