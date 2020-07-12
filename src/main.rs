@@ -82,7 +82,7 @@ fn load_asts(models: &[String]) -> Result<HashMap<String, Statement>, String> {
     for path in models.iter() {
         let sql = fs::read_to_string(path).unwrap();
         let statements = Parser::parse_sql(&PowerSqlDialect {}, &sql)
-            .map_err(|err| format!("Parse Error: {}", err))?;
+            .map_err(|err| format!("Parse Error in {}: {}", path, err))?;
 
         for statement in statements {
             let name = match &statement {
@@ -106,7 +106,7 @@ fn load_tests(models: &[String]) -> Result<Vec<Statement>, String> {
         let sql = fs::read_to_string(path).unwrap();
 
         let statements = Parser::parse_sql(&PowerSqlDialect {}, &sql)
-            .map_err(|err| format!("Parse Error: {}", err))?;
+            .map_err(|err| format!("Parse Error in {}: {}", path, err))?;
 
         for statement in statements {
             let query = match statement {
