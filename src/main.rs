@@ -2,7 +2,6 @@ mod execute;
 mod parser;
 mod types;
 use parser::PowerSqlDialect;
-use rayon::prelude::*;
 use serde_derive::Deserialize;
 use sqlparser::ast::{Cte, Query, SetExpr, Statement, TableFactor};
 use sqlparser::parser::Parser;
@@ -78,55 +77,46 @@ fn get_refs(query: &Query, vec: &mut Vec<String>) {
     get_refs_set_expr(&query.body, vec);
 }
 
-fn load_asts(models: &[String]) -> HashMap<String, Statement> {
-    models
-        .par_iter()
-        .flat_map(|x| {
-            let sql = fs::read_to_string(x).unwrap();
+fn load_asts(models: &[String]) -> Result<HashMap<String, Statement>, String> {
+    let mut res = HashMap::new();
+    for path in models.iter() {
+        let sql = fs::read_to_string(path).unwrap();
+        let statements = Parser::parse_sql(&PowerSqlDialect {}, &sql)
+            .map_err(|err| format!("Parse Error: {}", err))?;
 
-            // TODO Error handling
-            let statements = Parser::parse_sql(&PowerSqlDialect {}, &sql).unwrap();
-
-            let mut res = vec![];
-            for statement in statements {
-                let name = match &statement {
-                    Statement::CreateView { name, .. } => format!("{}", name),
-                    Statement::CreateTable {
-                        name,
-                        query: Some(_),
-                        ..
-                    } => format!("{}", name),
-                    _ => unimplemented!("Only (materialized) view and create table as supported "),
-                };
-
-                res.push((name, statement))
-            }
-
-            res
-        })
-        .collect()
+        for statement in statements {
+            let name = match &statement {
+                Statement::CreateView { name, .. } => format!("{}", name),
+                Statement::CreateTable {
+                    name,
+                    query: Some(_),
+                    ..
+                } => format!("{}", name),
+                _ => unimplemented!("Only (materialized) view and create table as supported "),
+            };
+            res.insert(name, statement);
+        }
+    }
+    Ok(res)
 }
 
-fn load_tests(models: &[String]) -> Vec<Statement> {
-    models
-        .par_iter()
-        .flat_map(|x| {
-            let sql = fs::read_to_string(x).unwrap();
+fn load_tests(models: &[String]) -> Result<Vec<Statement>, String> {
+    let mut res = vec![];
+    for path in models.iter() {
+        let sql = fs::read_to_string(path).unwrap();
 
-            // TODO Error handling
-            let statements = Parser::parse_sql(&PowerSqlDialect {}, &sql).unwrap();
+        let statements = Parser::parse_sql(&PowerSqlDialect {}, &sql)
+            .map_err(|err| format!("Parse Error: {}", err))?;
 
-            let mut res = vec![];
-            for statement in statements {
-                let query = match statement {
-                    q @ Statement::Query(_) => q,
-                    _ => unimplemented!("Only queries are supported in test files"),
-                };
-                res.push(query)
-            }
-            res
-        })
-        .collect()
+        for statement in statements {
+            let query = match statement {
+                q @ Statement::Query(_) => q,
+                _ => unimplemented!("Only queries are supported in test files"),
+            };
+            res.push(query)
+        }
+    }
+    Ok(res)
 }
 
 fn get_query(statement: &Statement) -> &Query {
@@ -261,7 +251,7 @@ pub async fn main() -> Result<(), String> {
             }
         }
     }
-    let asts = load_asts(&models);
+    let asts = load_asts(&models)?;
     let dependencies: HashMap<String, Vec<String>> = get_dependencies(&asts);
     detect_cycles(&dependencies)?;
 
@@ -294,7 +284,7 @@ pub async fn main() -> Result<(), String> {
                 }
             }
             let test_models = find_test_files(config.project.tests);
-            let tests = load_tests(&test_models);
+            let tests = load_tests(&test_models)?;
 
             for test in tests {
                 types::get_model_type(get_query(&test), ty_env.clone())?;
@@ -343,7 +333,7 @@ pub async fn main() -> Result<(), String> {
         }
         Command::Test => {
             let test_models = find_test_files(config.project.tests);
-            let tests = load_tests(&test_models);
+            let tests = load_tests(&test_models)?;
             let mut executor = execute::PostgresExecutor::new()
                 .await
                 .map_err(|x| format!("Connection error: {}", x))?;
