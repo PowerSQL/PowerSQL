@@ -5,6 +5,7 @@ authors = ["Daniël Heres <danielheres@gmail.com>"]
 edition = "2018"
 description = "Data transformation tool using SQL"
 license = "MIT"
+repository = "https://github.com/Dandandan/PowerSQL"
 
 [dependencies]
 sqlparser = "0.5.1"

@@ -26,7 +26,6 @@ use structopt::StructOpt;
 enum Command {
     Check,
     Run,
-    Lint,
     Docs,
     Test,
 }
@@ -322,7 +321,6 @@ pub async fn main() -> Result<(), String> {
                 }
             }
         }
-        Command::Lint => unimplemented!(),
         Command::Docs => {
             let arrows: Vec<String> = dependencies
                 .iter()
