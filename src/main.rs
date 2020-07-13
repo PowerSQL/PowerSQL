@@ -338,8 +338,7 @@ pub async fn main() -> Result<(), String> {
             let mut executor = execute::BigQueryExecutor::new().await?;
             for test in tests {
                 let test_query = format!("SELECT COUNT(*) FROM ({:}) AS T", test);
-                let rows = executor.query(test_query.as_str()).await?;
-                let value: i64 = rows[0].get(0);
+                let value = executor.query(test_query.as_str()).await?;
                 if value > 0 {
                     println!("{:} errors in {:}", value, test);
                 } else {

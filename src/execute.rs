@@ -7,7 +7,7 @@ extern crate google_bigquery2 as bigquery2;
 extern crate hyper;
 extern crate hyper_rustls;
 extern crate yup_oauth2 as oauth2;
-use bigquery2::{Bigquery, QueryRequest};
+use bigquery2::{Bigquery, QueryRequest, TableRow};
 use oauth2::{
     ApplicationSecret, Authenticator, DefaultAuthenticatorDelegate, MemoryStorage,
     ServiceAccountAccess,
@@ -75,10 +75,11 @@ impl PostgresExecutor {
         Ok(())
     }
 
-    pub async fn query(&mut self, query: &str) -> Result<Vec<Row>, String> {
+    pub async fn query(&mut self, query: &str) -> Result<i64, String> {
         self.client
             .query(query, &[])
             .await
+            .map(|x| x[0].get(0))
             .map_err(|x| format!("Failed to run query {}", x))
     }
 }
@@ -89,9 +90,9 @@ pub struct BigQueryExecutor {
 
 impl BigQueryExecutor {
     pub async fn new() -> Result<BigQueryExecutor, String> {
-        //let mut secret: ApplicationSecret = ApplicationSecret::default();
-        let client_secret =
-            yup_oauth2::service_account_key_from_file(&"application.json".to_string()).unwrap();
+        let key_file = env::var("GOOGLE_APPLICATION_CREDENTIALS")
+            .map_err(|_x| "GOOGLE_APPLICATION_CREDENTIALS not provided")?;
+        let client_secret = yup_oauth2::service_account_key_from_file(&key_file).unwrap();
         let client = hyper::Client::with_connector(hyper::net::HttpsConnector::new(
             hyper_rustls::TlsClient::new(),
         ));
@@ -105,16 +106,22 @@ impl BigQueryExecutor {
         return Ok(BigQueryExecutor { hub });
     }
 
-    pub async fn query(&mut self, query: &str) -> Result<Vec<Row>, String> {
+    pub async fn query(&mut self, query: &str) -> Result<i64, String> {
         let mut req = QueryRequest::default();
         req.query = Some(query.to_string());
-        let res = self
+        let res: TableRow = self
             .hub
             .jobs()
             .query(req, "website-main")
             .doit()
-            .map_err(|x| format!("Error {}", x));
+            .map(|(_r, q)| q.rows.unwrap()[0].clone())
+            .map_err(|x| format!("Error {}", x))?;
         println!("{:?}", res);
-        Ok(vec![])
+        Ok(res.f.unwrap()[0]
+            .v
+            .as_ref()
+            .unwrap()
+            .parse::<i64>()
+            .unwrap())
     }
 }
