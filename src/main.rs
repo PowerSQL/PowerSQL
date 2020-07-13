@@ -332,10 +332,10 @@ pub async fn main() -> Result<(), String> {
         Command::Test => {
             let test_models = find_test_files(config.project.tests);
             let tests = load_tests(&test_models)?;
-            let mut executor = execute::PostgresExecutor::new()
-                .await
-                .map_err(|x| format!("Connection error: {}", x))?;
-
+            // let mut executor = execute::PostgresExecutor::new()
+            //     .await
+            //     .map_err(|x| format!("Connection error: {}", x))?;
+            let mut executor = execute::BigQueryExecutor::new().await?;
             for test in tests {
                 let test_query = format!("SELECT COUNT(*) FROM ({:}) AS T", test);
                 let rows = executor.query(test_query.as_str()).await?;
