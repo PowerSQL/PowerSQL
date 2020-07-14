@@ -298,9 +298,10 @@ pub async fn main() -> Result<(), String> {
                 .map(|(x, _)| (*x).to_string())
                 .collect();
 
-            let mut executor = execute::PostgresExecutor::new()
-                .await
-                .map_err(|x| format!("Connection error: {}", x))?;
+            // let mut executor = execute::PostgresExecutor::new()
+            //     .await
+            //     .map_err(|x| format!("Connection error: {}", x))?;
+            let mut executor = execute::BigQueryExecutor::new().await?;
 
             while let Some(m) = nodes.pop() {
                 println!("Executing {}", m);

@@ -1,19 +1,13 @@
 use sqlparser::ast::Statement;
 
-use std::collections::HashMap;
 use std::env;
-use tokio_postgres::{Client, Error, NoTls, Row};
+use tokio_postgres::{Client, Error, NoTls};
 extern crate google_bigquery2 as bigquery2;
 extern crate hyper;
 extern crate hyper_rustls;
 extern crate yup_oauth2 as oauth2;
-use bigquery2::{Bigquery, QueryRequest, TableRow};
-use oauth2::{
-    ApplicationSecret, Authenticator, DefaultAuthenticatorDelegate, MemoryStorage,
-    ServiceAccountAccess,
-};
-use std::fs;
-use std::path::Path;
+use bigquery2::{Bigquery, DatasetReference, QueryRequest, TableRow};
+use oauth2::ServiceAccountAccess;
 
 pub struct PostgresExecutor {
     client: Client,
@@ -92,11 +86,11 @@ impl BigQueryExecutor {
     pub async fn new() -> Result<BigQueryExecutor, String> {
         let key_file = env::var("GOOGLE_APPLICATION_CREDENTIALS")
             .map_err(|_x| "GOOGLE_APPLICATION_CREDENTIALS not provided")?;
-        let client_secret = yup_oauth2::service_account_key_from_file(&key_file).unwrap();
+        let client_secret = oauth2::service_account_key_from_file(&key_file).unwrap();
         let client = hyper::Client::with_connector(hyper::net::HttpsConnector::new(
             hyper_rustls::TlsClient::new(),
         ));
-        let access = yup_oauth2::ServiceAccountAccess::new(client_secret, client);
+        let access = oauth2::ServiceAccountAccess::new(client_secret, client);
         let hub = Bigquery::new(
             hyper::Client::with_connector(hyper::net::HttpsConnector::new(
                 hyper_rustls::TlsClient::new(),
@@ -104,6 +98,40 @@ impl BigQueryExecutor {
             access,
         );
         return Ok(BigQueryExecutor { hub });
+    }
+
+    pub async fn execute(&mut self, name: &str, stmt: &Statement) -> Result<(), String> {
+        let mut req = QueryRequest::default();
+
+        req.query = Some(format!("{}", stmt));
+        req.use_legacy_sql = Some(false);
+        req.default_dataset = Some(DatasetReference {
+            project_id: Some("website-main".to_string()),
+            dataset_id: Some("bla".to_string()),
+        });
+
+        let mut drop_query = QueryRequest::default();
+        drop_query.query = Some(format!("DROP VIEW IF EXISTS {}", name));
+        drop_query.use_legacy_sql = Some(false);
+        drop_query.default_dataset = Some(DatasetReference {
+            project_id: Some("website-main".to_string()),
+            dataset_id: Some("bla".to_string()),
+        });
+        self.hub
+            .jobs()
+            .query(drop_query, "website-main")
+            .doit()
+            .map(|(_r, q)| ())
+            .map_err(|x| format!("Error {}", x))?;
+
+        self.hub
+            .jobs()
+            .query(req, "website-main")
+            .doit()
+            .map(|(_r, q)| ())
+            .map_err(|x| format!("Error {}", x))?;
+
+        Ok(())
     }
 
     pub async fn query(&mut self, query: &str) -> Result<i64, String> {
@@ -116,7 +144,6 @@ impl BigQueryExecutor {
             .doit()
             .map(|(_r, q)| q.rows.unwrap()[0].clone())
             .map_err(|x| format!("Error {}", x))?;
-        println!("{:?}", res);
         Ok(res.f.unwrap()[0]
             .v
             .as_ref()
