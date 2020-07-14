@@ -1,6 +1,7 @@
 use sqlparser::ast::Statement;
 
 use std::env;
+#[cfg(feature = "postgres")]
 use tokio_postgres::{Client, NoTls};
 extern crate google_bigquery2 as bigquery2;
 extern crate hyper;
@@ -19,11 +20,13 @@ pub trait Executor {
     async fn query(&mut self, query: &str) -> Result<i64, String>;
 }
 
+#[cfg(feature = "postgres")]
 pub struct Postgres {
     client: Client,
 }
 
 #[async_trait]
+#[cfg(feature = "postgres")]
 impl Executor for Postgres {
     async fn new() -> Result<Postgres, String> {
         // TODO, simplify, use TLS
