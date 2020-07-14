@@ -1,4 +1,4 @@
-CREATE VIEW revenue AS
+CREATE MATERIALIZED VIEW revenue AS
 SELECT CAST(product_id AS VARCHAR) product_id,
     euro
 FROM product_sales;
