@@ -110,21 +110,23 @@ pub struct BigqueryRunner {
     hub: Bigquery<hyper::Client, ServiceAccountAccess<hyper::Client>>,
     dataset_id: String,
     project_id: String,
+    location: Option<String>,
 }
 
 #[cfg(feature = "bigquery")]
 impl BigqueryRunner {
     fn build_query(&mut self, query: &str) -> QueryRequest {
-        let mut qeury_request = QueryRequest::default();
+        let mut query_request = QueryRequest::default();
 
-        qeury_request.query = Some(query.to_string());
-        qeury_request.use_legacy_sql = Some(false);
-        qeury_request.default_dataset = Some(DatasetReference {
+        query_request.query = Some(query.to_string());
+        query_request.use_legacy_sql = Some(false);
+        query_request.location = self.location.clone();
+        query_request.default_dataset = Some(DatasetReference {
             project_id: Some(self.project_id.to_string()),
             dataset_id: Some(self.dataset_id.to_string()),
         });
 
-        return qeury_request;
+        return query_request;
     }
 
     fn run_query(&mut self, query: QueryRequest) -> Result<QueryResponse, String> {
@@ -147,6 +149,7 @@ impl Executor for BigqueryRunner {
 
         let project_id = env::var("PROJECT_ID").map_err(|_x| "PROJECT_ID not provided")?;
         let dataset_id = env::var("DATASET_ID").map_err(|_x| "DATASET_ID not provided")?;
+        let location = env::var("LOCATION").ok();
 
         let client_secret = oauth2::service_account_key_from_file(&key_file).unwrap();
         let client = hyper::Client::with_connector(hyper::net::HttpsConnector::new(
@@ -163,12 +166,15 @@ impl Executor for BigqueryRunner {
             hub,
             project_id,
             dataset_id,
+            location,
         });
     }
 
     async fn execute(&mut self, name: &str, stmt: &Statement) -> Result<(), String> {
         let drop_query = self.build_query(&format!("DROP VIEW IF EXISTS {}", name));
-        self.run_query(drop_query)?;
+        self.run_query(drop_query);
+        let drop_query = self.build_query(&format!("DROP TABLE IF EXISTS {}", name));
+        self.run_query(drop_query);
 
         let query = self.build_query(&format!("{}", stmt));
         self.run_query(query)?;
