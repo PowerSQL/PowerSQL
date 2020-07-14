@@ -17,10 +17,11 @@ PowerSQL, **the** data transformation tool.
 
 Features:
 
-* Supports many SQL dialects
-* Plain SQL helps to integrate with your favourite database tools, formatters and linters: simple add your `CREATE VIEW`  or `CREATE TABLE AS` statements.
-* Syntax & type checking avoid errors
+* Supports many SQL dialects (BigQuery and PostgreSQL now supported to execute queries on).
+* Supports plain SQL to make it easy to integrate with your favourite database tools, formatters and linters: simple add your `CREATE [MATERIALIZED] VIEW` , `CREATE TABLE AS` statements.
+* Syntax & type checking avoids errors early on
 * Automatically creates and executes a dependency graph.
+* Perform automated data testing using simple SQL queries
 
 
 ## Getting started
