@@ -108,6 +108,8 @@ impl Executor for Postgres {
 #[cfg(feature = "bigquery")]
 pub struct BigqueryRunner {
     hub: Bigquery<hyper::Client, ServiceAccountAccess<hyper::Client>>,
+    dataset_id: String,
+    project_id: String,
 }
 
 #[cfg(feature = "bigquery")]
@@ -118,8 +120,8 @@ impl BigqueryRunner {
         qeury_request.query = Some(query.to_string());
         qeury_request.use_legacy_sql = Some(false);
         qeury_request.default_dataset = Some(DatasetReference {
-            project_id: Some("website-main".to_string()),
-            dataset_id: Some("bla".to_string()),
+            project_id: Some(self.project_id.to_string()),
+            dataset_id: Some(self.dataset_id.to_string()),
         });
 
         return qeury_request;
@@ -129,7 +131,7 @@ impl BigqueryRunner {
         return self
             .hub
             .jobs()
-            .query(query, "website-main")
+            .query(query, &self.project_id)
             .doit()
             .map(|(_r, q)| q)
             .map_err(|x| format!("Error {}", x));
@@ -142,6 +144,10 @@ impl Executor for BigqueryRunner {
     async fn new() -> Result<BigqueryRunner, String> {
         let key_file = env::var("GOOGLE_APPLICATION_CREDENTIALS")
             .map_err(|_x| "GOOGLE_APPLICATION_CREDENTIALS not provided")?;
+
+        let project_id = env::var("PROJECT_ID").map_err(|_x| "PROJECT_ID not provided")?;
+        let dataset_id = env::var("DATASET_ID").map_err(|_x| "DATASET_ID not provided")?;
+
         let client_secret = oauth2::service_account_key_from_file(&key_file).unwrap();
         let client = hyper::Client::with_connector(hyper::net::HttpsConnector::new(
             hyper_rustls::TlsClient::new(),
@@ -153,7 +159,11 @@ impl Executor for BigqueryRunner {
             )),
             access,
         );
-        return Ok(BigqueryRunner { hub });
+        return Ok(BigqueryRunner {
+            hub,
+            project_id,
+            dataset_id,
+        });
     }
 
     async fn execute(&mut self, name: &str, stmt: &Statement) -> Result<(), String> {

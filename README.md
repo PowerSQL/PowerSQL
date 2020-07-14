@@ -62,6 +62,18 @@ To run against the database, provide the following environment variables:
 - PG_DATABASE
 - PG_PASSWORD
 
+## BigQuery
+
+To run against the database, provide the following environment variables:
+
+- GOOGLE_APPLICATION_CREDENTIALS
+- PROJECT_ID
+- DATASET_ID
+
+`GOOGLE_APPLICATION_CREDENTIALS` should refer to an service account key file (this can be set by an appliation rather than locally).
+
+`PROJECT_ID` is the id (not number) of the project and `DATASET_ID` is the name of the dataset that is used by default.
+
 ## Commands
 
 - `powersql check`: This will load all your `.sql` files in the directories listed in `models`. It will check the syntax of the SQL statements. After this, it will check the DAG and report if there is a circular dependency. Finally, it will run a type checker and report any type errors.
