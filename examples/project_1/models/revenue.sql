@@ -1,8 +1,8 @@
-CREATE VIEW revenue AS
+CREATE MATERIALIZED VIEW revenue AS
 SELECT CAST(product_id AS VARCHAR) product_id,
     euro
 FROM product_sales;
-CREATE MATERIALIZED VIEW rev_per_product AS
+CREATE VIEW rev_per_product AS
 SELECT SUM(euro) AS rev,
     COUNT(*) quantity,
     product_id

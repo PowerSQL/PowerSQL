@@ -8,8 +8,8 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Build
-        run: cargo build --verbose
+        run: cargo build --verbose --features postgres
       - name: Run style check
-        run: cargo clippy
+        run: cargo clippy --features postgres
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test --verbose --features postgres

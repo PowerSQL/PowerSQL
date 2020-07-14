@@ -1,6 +1,7 @@
 mod execute;
 mod parser;
 mod types;
+use execute::Executor;
 use parser::PowerSqlDialect;
 use serde_derive::Deserialize;
 use sqlparser::ast::{Cte, Query, SetExpr, Statement, TableFactor};
@@ -8,6 +9,7 @@ use sqlparser::parser::Parser;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
+use structopt::StructOpt;
 use walkdir::WalkDir;
 
 #[derive(Deserialize, Debug)]
@@ -20,8 +22,6 @@ struct Project {
     models: Vec<String>,
     tests: Option<Vec<String>>,
 }
-
-use structopt::StructOpt;
 #[derive(Debug, StructOpt)]
 enum Command {
     Check,
@@ -225,6 +225,16 @@ fn find_test_files(tests: Option<Vec<String>>) -> Vec<String> {
     return tests_models;
 }
 
+#[cfg(feature = "bigquery")]
+async fn get_executor() -> Result<execute::BigqueryRunner, String> {
+    execute::BigqueryRunner::new().await
+}
+
+#[cfg(feature = "postgres")]
+async fn get_executor() -> Result<execute::Postgres, String> {
+    execute::Postgres::new().await
+}
+
 #[tokio::main]
 pub async fn main() -> Result<(), String> {
     let opt = Opt::from_args();
@@ -298,7 +308,10 @@ pub async fn main() -> Result<(), String> {
                 .map(|(x, _)| (*x).to_string())
                 .collect();
 
-            let mut executor = execute::PostgresExecutor::new()
+            // let mut executor = execute::PostgresExecutor::new()
+            //     .await
+            //     .map_err(|x| format!("Connection error: {}", x))?;
+            let mut executor = get_executor()
                 .await
                 .map_err(|x| format!("Connection error: {}", x))?;
 
@@ -332,14 +345,11 @@ pub async fn main() -> Result<(), String> {
         Command::Test => {
             let test_models = find_test_files(config.project.tests);
             let tests = load_tests(&test_models)?;
-            let mut executor = execute::PostgresExecutor::new()
-                .await
-                .map_err(|x| format!("Connection error: {}", x))?;
+            let mut executor = get_executor().await?;
 
             for test in tests {
                 let test_query = format!("SELECT COUNT(*) FROM ({:}) AS T", test);
-                let rows = executor.query(test_query.as_str()).await?;
-                let value: i64 = rows[0].get(0);
+                let value = executor.query(test_query.as_str()).await?;
                 if value > 0 {
                     println!("{:} errors in {:}", value, test);
                 } else {
