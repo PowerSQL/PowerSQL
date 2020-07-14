@@ -27,8 +27,11 @@ Features:
 
 Install the latest version using `cargo` (`curl https://sh.rustup.rs -sSf | sh`).
 
-```
-cargo install powersql
+```bash
+# For PostgreSQL
+cargo install powersql --features postgres
+# For BigQuery
+cargo install powersql --features bigquery
 ```
 
 ## PostgreSQL
