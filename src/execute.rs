@@ -6,7 +6,7 @@ extern crate google_bigquery2 as bigquery2;
 extern crate hyper;
 extern crate hyper_rustls;
 extern crate yup_oauth2 as oauth2;
-use bigquery2::{Bigquery, DatasetReference, QueryRequest, TableRow};
+use bigquery2::{Bigquery, DatasetReference, QueryRequest, QueryResponse};
 use oauth2::ServiceAccountAccess;
 
 pub struct PostgresExecutor {
@@ -100,51 +100,43 @@ impl BigQueryExecutor {
         return Ok(BigQueryExecutor { hub });
     }
 
+    fn build_query(&mut self, query: &str) -> QueryRequest {
+        let mut qeury_request = QueryRequest::default();
+
+        qeury_request.query = Some(query.to_string());
+        qeury_request.use_legacy_sql = Some(false);
+        qeury_request.default_dataset = Some(DatasetReference {
+            project_id: Some("website-main".to_string()),
+            dataset_id: Some("bla".to_string()),
+        });
+
+        return qeury_request;
+    }
+
+    fn run_query(&mut self, query: QueryRequest) -> Result<QueryResponse, String> {
+        return self
+            .hub
+            .jobs()
+            .query(query, "website-main")
+            .doit()
+            .map(|(_r, q)| q)
+            .map_err(|x| format!("Error {}", x));
+    }
+
     pub async fn execute(&mut self, name: &str, stmt: &Statement) -> Result<(), String> {
-        let mut req = QueryRequest::default();
+        let drop_query = self.build_query(&format!("DROP VIEW IF EXISTS {}", name));
+        self.run_query(drop_query)?;
 
-        req.query = Some(format!("{}", stmt));
-        req.use_legacy_sql = Some(false);
-        req.default_dataset = Some(DatasetReference {
-            project_id: Some("website-main".to_string()),
-            dataset_id: Some("bla".to_string()),
-        });
-
-        let mut drop_query = QueryRequest::default();
-        drop_query.query = Some(format!("DROP VIEW IF EXISTS {}", name));
-        drop_query.use_legacy_sql = Some(false);
-        drop_query.default_dataset = Some(DatasetReference {
-            project_id: Some("website-main".to_string()),
-            dataset_id: Some("bla".to_string()),
-        });
-        self.hub
-            .jobs()
-            .query(drop_query, "website-main")
-            .doit()
-            .map(|(_r, q)| ())
-            .map_err(|x| format!("Error {}", x))?;
-
-        self.hub
-            .jobs()
-            .query(req, "website-main")
-            .doit()
-            .map(|(_r, q)| ())
-            .map_err(|x| format!("Error {}", x))?;
+        let query = self.build_query(&format!("{}", stmt));
+        self.run_query(query)?;
 
         Ok(())
     }
 
     pub async fn query(&mut self, query: &str) -> Result<i64, String> {
-        let mut req = QueryRequest::default();
-        req.query = Some(query.to_string());
-        let res: TableRow = self
-            .hub
-            .jobs()
-            .query(req, "website-main")
-            .doit()
-            .map(|(_r, q)| q.rows.unwrap()[0].clone())
-            .map_err(|x| format!("Error {}", x))?;
-        Ok(res.f.unwrap()[0]
+        let query = self.build_query(query);
+        let res = self.run_query(query)?;
+        Ok(res.rows.unwrap()[0].clone().f.unwrap()[0]
             .v
             .as_ref()
             .unwrap()
