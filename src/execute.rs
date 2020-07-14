@@ -1,20 +1,31 @@
 use sqlparser::ast::Statement;
 
 use std::env;
-use tokio_postgres::{Client, Error, NoTls};
+use tokio_postgres::{Client, NoTls};
 extern crate google_bigquery2 as bigquery2;
 extern crate hyper;
 extern crate hyper_rustls;
 extern crate yup_oauth2 as oauth2;
+use async_trait::async_trait;
 use bigquery2::{Bigquery, DatasetReference, QueryRequest, QueryResponse};
 use oauth2::ServiceAccountAccess;
 
-pub struct PostgresExecutor {
+#[async_trait]
+pub trait Executor {
+    async fn new() -> Result<Self, String>
+    where
+        Self: Sized;
+    async fn execute(&mut self, name: &str, stmt: &Statement) -> Result<(), String>;
+    async fn query(&mut self, query: &str) -> Result<i64, String>;
+}
+
+pub struct Postgres {
     client: Client,
 }
 
-impl PostgresExecutor {
-    pub async fn new() -> Result<PostgresExecutor, String> {
+#[async_trait]
+impl Executor for Postgres {
+    async fn new() -> Result<Postgres, String> {
         // TODO, simplify, use TLS
         let hostname = env::var("PG_HOSTNAME").map_err(|_x| "PG_HOSTNAME not provided")?;
         let username = env::var("PG_USERNAME").map_err(|_x| "PG_USERNAME not provided")?;
@@ -39,9 +50,9 @@ impl PostgresExecutor {
             }
         });
 
-        Ok(PostgresExecutor { client })
+        Ok(Postgres { client })
     }
-    pub async fn execute(&mut self, name: &str, stmt: &Statement) -> Result<(), Error> {
+    async fn execute(&mut self, name: &str, stmt: &Statement) -> Result<(), String> {
         let _ = self
             .client
             .execute(
@@ -58,18 +69,26 @@ impl PostgresExecutor {
             )
             .await;
 
-        let transaction = self.client.transaction().await?;
+        let transaction = self
+            .client
+            .transaction()
+            .await
+            .map_err(|e| format!("PostgresError {}", e))?;
 
         transaction
             .batch_execute(format!("{}", stmt).as_str())
-            .await?;
+            .await
+            .map_err(|e| format!("PostgresError {}", e))?;
 
-        transaction.commit().await?;
+        transaction
+            .commit()
+            .await
+            .map_err(|e| format!("PostgresError {}", e))?;
 
         Ok(())
     }
 
-    pub async fn query(&mut self, query: &str) -> Result<i64, String> {
+    async fn query(&mut self, query: &str) -> Result<i64, String> {
         self.client
             .query(query, &[])
             .await
@@ -78,28 +97,11 @@ impl PostgresExecutor {
     }
 }
 
-pub struct BigQueryExecutor {
+pub struct BigqueryRunner {
     hub: Bigquery<hyper::Client, ServiceAccountAccess<hyper::Client>>,
 }
 
-impl BigQueryExecutor {
-    pub async fn new() -> Result<BigQueryExecutor, String> {
-        let key_file = env::var("GOOGLE_APPLICATION_CREDENTIALS")
-            .map_err(|_x| "GOOGLE_APPLICATION_CREDENTIALS not provided")?;
-        let client_secret = oauth2::service_account_key_from_file(&key_file).unwrap();
-        let client = hyper::Client::with_connector(hyper::net::HttpsConnector::new(
-            hyper_rustls::TlsClient::new(),
-        ));
-        let access = oauth2::ServiceAccountAccess::new(client_secret, client);
-        let hub = Bigquery::new(
-            hyper::Client::with_connector(hyper::net::HttpsConnector::new(
-                hyper_rustls::TlsClient::new(),
-            )),
-            access,
-        );
-        return Ok(BigQueryExecutor { hub });
-    }
-
+impl BigqueryRunner {
     fn build_query(&mut self, query: &str) -> QueryRequest {
         let mut qeury_request = QueryRequest::default();
 
@@ -122,8 +124,28 @@ impl BigQueryExecutor {
             .map(|(_r, q)| q)
             .map_err(|x| format!("Error {}", x));
     }
+}
 
-    pub async fn execute(&mut self, name: &str, stmt: &Statement) -> Result<(), String> {
+#[async_trait]
+impl Executor for BigqueryRunner {
+    async fn new() -> Result<BigqueryRunner, String> {
+        let key_file = env::var("GOOGLE_APPLICATION_CREDENTIALS")
+            .map_err(|_x| "GOOGLE_APPLICATION_CREDENTIALS not provided")?;
+        let client_secret = oauth2::service_account_key_from_file(&key_file).unwrap();
+        let client = hyper::Client::with_connector(hyper::net::HttpsConnector::new(
+            hyper_rustls::TlsClient::new(),
+        ));
+        let access = oauth2::ServiceAccountAccess::new(client_secret, client);
+        let hub = Bigquery::new(
+            hyper::Client::with_connector(hyper::net::HttpsConnector::new(
+                hyper_rustls::TlsClient::new(),
+            )),
+            access,
+        );
+        return Ok(BigqueryRunner { hub });
+    }
+
+    async fn execute(&mut self, name: &str, stmt: &Statement) -> Result<(), String> {
         let drop_query = self.build_query(&format!("DROP VIEW IF EXISTS {}", name));
         self.run_query(drop_query)?;
 
@@ -133,7 +155,7 @@ impl BigQueryExecutor {
         Ok(())
     }
 
-    pub async fn query(&mut self, query: &str) -> Result<i64, String> {
+    async fn query(&mut self, query: &str) -> Result<i64, String> {
         let query = self.build_query(query);
         let res = self.run_query(query)?;
         Ok(res.rows.unwrap()[0].clone().f.unwrap()[0]

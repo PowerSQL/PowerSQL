@@ -1,6 +1,7 @@
 mod execute;
 mod parser;
 mod types;
+use execute::Executor;
 use parser::PowerSqlDialect;
 use serde_derive::Deserialize;
 use sqlparser::ast::{Cte, Query, SetExpr, Statement, TableFactor};
@@ -8,6 +9,7 @@ use sqlparser::parser::Parser;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
+use structopt::StructOpt;
 use walkdir::WalkDir;
 
 #[derive(Deserialize, Debug)]
@@ -20,8 +22,6 @@ struct Project {
     models: Vec<String>,
     tests: Option<Vec<String>>,
 }
-
-use structopt::StructOpt;
 #[derive(Debug, StructOpt)]
 enum Command {
     Check,
@@ -301,7 +301,9 @@ pub async fn main() -> Result<(), String> {
             // let mut executor = execute::PostgresExecutor::new()
             //     .await
             //     .map_err(|x| format!("Connection error: {}", x))?;
-            let mut executor = execute::BigQueryExecutor::new().await?;
+            let mut executor = execute::BigqueryRunner::new()
+                .await
+                .map_err(|x| format!("Connection error: {}", x))?;
 
             while let Some(m) = nodes.pop() {
                 println!("Executing {}", m);
@@ -336,7 +338,7 @@ pub async fn main() -> Result<(), String> {
             // let mut executor = execute::PostgresExecutor::new()
             //     .await
             //     .map_err(|x| format!("Connection error: {}", x))?;
-            let mut executor = execute::BigQueryExecutor::new().await?;
+            let mut executor = execute::BigqueryRunner::new().await?;
             for test in tests {
                 let test_query = format!("SELECT COUNT(*) FROM ({:}) AS T", test);
                 let value = executor.query(test_query.as_str()).await?;

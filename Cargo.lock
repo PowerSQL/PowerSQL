@@ -884,6 +884,7 @@ dependencies = [
 name = "powersql"
 version = "0.1.8"
 dependencies = [
+ "async-trait",
  "google-bigquery2",
  "hyper",
  "hyper-rustls",

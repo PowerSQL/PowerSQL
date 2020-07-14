@@ -15,6 +15,7 @@ serde = "1"
 serde_derive = "1"
 structopt = "0.3"
 im = "15"
+async-trait = "0.1"
 
 # PostgreSQL
 tokio = { version = "0.2", features = ["macros"] }
