@@ -16,21 +16,21 @@ repos:
     -   id: cargo-check
         name: cargo check
         description: Check the package for errors.
-        entry: cargo check
+        entry: cargo check --features postgres
         language: system
         files: \.rs$
         pass_filenames: false
     -   id: cargo-test
         name: cargo test
         description: Run tests
-        entry: cargo test
+        entry: cargo test --features postgres
         language: system
         files: \.rs$
         pass_filenames: false
     -   id: clippy
         name: clippy
         description: Lint rust sources
-        entry: cargo clippy -- -D warnings
+        entry: cargo clippy --features postgres -- -D warnings 
         language: system
         files: \.rs$
         pass_filenames: false

@@ -9,8 +9,9 @@ repository = "https://github.com/Dandandan/PowerSQL"
 
 
 [features]
+default = []
 postgres = ["tokio-postgres"]
-
+bigquery = ["google-bigquery2", "hyper", "hyper-rustls", "serde_json", "yup-oauth2"]
 
 [dependencies]
 sqlparser = "0.5.1"
@@ -28,14 +29,11 @@ tokio = { version = "0.2", features = ["macros"] }
 tokio-postgres = { version = "0.5", optional=true}
 
 # BigQuery
-google-bigquery2 = "*"
-# This project intentionally uses an old version of Hyper. See
-# https://github.com/Byron/google-apis-rs/issues/173 for more
-# information.
-hyper = "^0.10"
-hyper-rustls = "^0.6"
-serde_json = "^1.0"
-yup-oauth2 = "^1.0"
+google-bigquery2 = {version = "1", optional=true}
+hyper = {version = "^0.10", optional=true}
+hyper-rustls = {version="^0.6", optional=true}
+serde_json = {version="^1.0", optional=true}
+yup-oauth2 = {version = "^1.0", optional=true}
 
 [dev-dependencies]
 maplit = "1.0"

@@ -3,12 +3,18 @@ use sqlparser::ast::Statement;
 use std::env;
 #[cfg(feature = "postgres")]
 use tokio_postgres::{Client, NoTls};
+#[cfg(feature = "bigquery")]
 extern crate google_bigquery2 as bigquery2;
+#[cfg(feature = "bigquery")]
 extern crate hyper;
+#[cfg(feature = "bigquery")]
 extern crate hyper_rustls;
+#[cfg(feature = "bigquery")]
 extern crate yup_oauth2 as oauth2;
 use async_trait::async_trait;
+#[cfg(feature = "bigquery")]
 use bigquery2::{Bigquery, DatasetReference, QueryRequest, QueryResponse};
+#[cfg(feature = "bigquery")]
 use oauth2::ServiceAccountAccess;
 
 #[async_trait]
@@ -99,11 +105,12 @@ impl Executor for Postgres {
             .map_err(|x| format!("Failed to run query {}", x))
     }
 }
-
+#[cfg(feature = "bigquery")]
 pub struct BigqueryRunner {
     hub: Bigquery<hyper::Client, ServiceAccountAccess<hyper::Client>>,
 }
 
+#[cfg(feature = "bigquery")]
 impl BigqueryRunner {
     fn build_query(&mut self, query: &str) -> QueryRequest {
         let mut qeury_request = QueryRequest::default();
@@ -129,6 +136,7 @@ impl BigqueryRunner {
     }
 }
 
+#[cfg(feature = "bigquery")]
 #[async_trait]
 impl Executor for BigqueryRunner {
     async fn new() -> Result<BigqueryRunner, String> {
