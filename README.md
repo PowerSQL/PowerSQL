@@ -13,7 +13,9 @@
 </a>
 </div>
 
-PowerSQL, **the** data transformation tool.
+PowerSQL, **the** data transformation tool for data {engineers, scientists, analysts}.
+
+PowerSQL automatically find the relations between your SQL statements and runs your transformations as a job on your database / data warehouse / data engine.
 
 Features:
 
