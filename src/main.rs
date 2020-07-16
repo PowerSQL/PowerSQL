@@ -222,7 +222,7 @@ fn find_test_files(tests: Option<Vec<String>>) -> Vec<String> {
             }
         }
     }
-    return tests_models;
+    tests_models
 }
 
 #[cfg(feature = "bigquery")]
@@ -317,10 +317,7 @@ pub async fn main() -> Result<(), String> {
 
             while let Some(m) = nodes.pop() {
                 println!("Executing {}", m);
-                executor
-                    .execute(&m, asts.get(&m).unwrap())
-                    .await
-                    .map_err(|_x| format!("{}", _x))?;
+                executor.execute(&m, asts.get(&m).unwrap()).await?;
                 println!("Ready {}", m);
                 println!("Graph {:?}", graph);
 
