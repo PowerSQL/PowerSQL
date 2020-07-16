@@ -8,3 +8,6 @@ WHERE euro <= 0;
 SELECT 1
 FROM rev_per_product
 WHERE quantity <= 0;
+ASSERT
+1 = 2
+AS 'Table must contain more than 0 rows.';

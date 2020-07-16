@@ -13,7 +13,7 @@ extern crate hyper_rustls;
 extern crate yup_oauth2 as oauth2;
 use async_trait::async_trait;
 #[cfg(feature = "bigquery")]
-use bigquery2::{Bigquery, DatasetReference, QueryRequest, QueryResponse};
+use bigquery2::{Bigquery, DatasetReference, Error, QueryRequest, QueryResponse};
 #[cfg(feature = "bigquery")]
 use oauth2::ServiceAccountAccess;
 
@@ -23,7 +23,23 @@ pub trait Executor {
     where
         Self: Sized;
     async fn execute(&mut self, name: &str, stmt: &Statement) -> Result<(), String>;
+    async fn execute_raw(&mut self, stmt: &Statement) -> Result<(), BackendError>;
+
     async fn query(&mut self, query: &str) -> Result<i64, String>;
+}
+
+pub enum BackendError {
+    Message { message: String },
+    TestError { message: String, code: usize },
+}
+
+impl BackendError {
+    fn get_message(self) -> String {
+        match self {
+            BackendError::Message { message } => message,
+            BackendError::TestError { message, code } => message,
+        }
+    }
 }
 
 #[cfg(feature = "postgres")]
@@ -97,6 +113,17 @@ impl Executor for Postgres {
         Ok(())
     }
 
+    async fn execute_raw(&mut self, stmt: &Statement) -> Result<(), BackendError> {
+        let _ = self
+            .client
+            .execute(format!("{}", stmt).as_str(), &[])
+            .await
+            .map_err(|x| BackendError::Message {
+                message: format!("{}", x),
+            })?;
+        Ok(())
+    }
+
     async fn query(&mut self, query: &str) -> Result<i64, String> {
         self.client
             .query(query, &[])
@@ -129,14 +156,21 @@ impl BigqueryRunner {
         return query_request;
     }
 
-    fn run_query(&mut self, query: QueryRequest) -> Result<QueryResponse, String> {
+    fn run_query(&mut self, query: QueryRequest) -> Result<QueryResponse, BackendError> {
         return self
             .hub
             .jobs()
             .query(query, &self.project_id)
             .doit()
             .map(|(_r, q)| q)
-            .map_err(|x| format!("Error {}", x));
+            .map_err(|x|
+                //if matches!(response, Error::BadRequest(r) if )
+                match x {
+                    Error::BadRequest(response) if response.error.code == 400 => {
+                        BackendError::TestError{message: response.error.message, code: 400}
+                    }
+                    _ => BackendError::Message{message:format!("{}", x)}
+                });
     }
 }
 
@@ -170,21 +204,29 @@ impl Executor for BigqueryRunner {
         });
     }
 
+    async fn execute_raw(&mut self, stmt: &Statement) -> Result<(), BackendError> {
+        let query = self.build_query(&format!("{}", stmt));
+        self.run_query(query)?;
+        Ok(())
+    }
+
     async fn execute(&mut self, name: &str, stmt: &Statement) -> Result<(), String> {
+        // TODO use CREATE OR REPLACE
         let drop_query = self.build_query(&format!("DROP VIEW IF EXISTS {}", name));
         self.run_query(drop_query);
         let drop_query = self.build_query(&format!("DROP TABLE IF EXISTS {}", name));
         self.run_query(drop_query);
 
         let query = self.build_query(&format!("{}", stmt));
-        self.run_query(query)?;
+        self.run_query(query).map_err(|x| x.get_message())?;
 
         Ok(())
     }
 
     async fn query(&mut self, query: &str) -> Result<i64, String> {
         let query = self.build_query(query);
-        let res = self.run_query(query)?;
+        let res = self.run_query(query).map_err(|x| x.get_message())?;
+        println!("{:?}", res);
         Ok(res.rows.unwrap()[0].clone().f.unwrap()[0]
             .v
             .as_ref()

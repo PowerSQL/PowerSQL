@@ -1,10 +1,12 @@
 mod execute;
 mod parser;
 mod types;
-use execute::Executor;
+use execute::{BackendError, Executor};
 use parser::PowerSqlDialect;
 use serde_derive::Deserialize;
-use sqlparser::ast::{Cte, Expr, Query, SelectItem, SetExpr, Statement, TableFactor};
+use sqlparser::ast::{
+    Cte, Expr, Function, ListAgg, Query, SelectItem, SetExpr, Statement, TableFactor,
+};
 use sqlparser::parser::Parser;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -63,12 +65,13 @@ fn get_refs_table_factor(table_factor: &TableFactor, vec: &mut Vec<String>) {
 fn get_refs_set_expr(body: &SetExpr, vec: &mut Vec<String>) {
     match body {
         SetExpr::Query(q) => get_refs(q, vec),
-        SetExpr::Select(s) => {
-            s.from
+        SetExpr::Select(select) => {
+            select
+                .from
                 .iter()
-                .for_each(|x| get_refs_table_factor(&x.relation, vec));
+                .for_each(|table| get_refs_table_factor(&table.relation, vec));
 
-            s.projection.iter().for_each(|x| match x {
+            select.projection.iter().for_each(|x| match x {
                 SelectItem::ExprWithAlias { expr, .. } => get_refs_expr(expr, vec),
                 SelectItem::UnnamedExpr(expr) => get_refs_expr(expr, vec),
                 _ => {}
@@ -90,6 +93,32 @@ fn get_refs_expr(expr: &Expr, vec: &mut Vec<String>) {
         Expr::BinaryOp { left, right, .. } => {
             get_refs_expr(left, vec);
             get_refs_expr(right, vec);
+        }
+        Expr::Cast { expr, .. } => {
+            get_refs_expr(expr, vec);
+        }
+        Expr::Collate { expr, .. } => {
+            get_refs_expr(expr, vec);
+        }
+        Expr::Exists(query) => get_refs(query, vec),
+        Expr::Extract { expr, .. } => get_refs_expr(expr, vec),
+        Expr::Function(Function { args, .. }) => {
+            for arg in args {
+                get_refs_expr(arg, vec);
+            }
+        }
+        Expr::InSubquery { expr, subquery, .. } => {
+            get_refs_expr(expr, vec);
+            get_refs(subquery, vec);
+        }
+        Expr::IsNotNull(expr) => {
+            get_refs_expr(expr, vec);
+        }
+        Expr::IsNull(expr) => {
+            get_refs_expr(expr, vec);
+        }
+        Expr::ListAgg(ListAgg { expr, .. }) => {
+            get_refs_expr(expr, vec);
         }
         // TODO: implement more expressions
         _ => {}
@@ -391,7 +420,20 @@ pub async fn main() -> Result<(), String> {
                             println!("OK");
                         }
                     }
-                    Statement::Assert { .. } => print!("Assert test found"),
+                    Statement::Assert { .. } => {
+                        println!("{}", test);
+                        let value = executor.execute_raw(&test).await;
+
+                        match value {
+                            Err(BackendError::TestError { message, .. }) => {
+                                println!("error: {}", message)
+                            }
+                            Err(BackendError::Message { message }) => {
+                                println!("error: {}", message)
+                            }
+                            Ok(_) => println!("OK"),
+                        }
+                    }
                     _ => unreachable!("Only Query & assert supported in tests"),
                 }
             }
