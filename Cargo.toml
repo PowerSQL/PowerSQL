@@ -1,6 +1,6 @@
 [package]
 name = "powersql"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Daniël Heres <danielheres@gmail.com>"]
 edition = "2018"
 description = "Data transformation tool using SQL"
@@ -14,7 +14,7 @@ postgres = ["tokio-postgres"]
 bigquery = ["google-bigquery2", "hyper", "hyper-rustls", "serde_json", "yup-oauth2"]
 
 [dependencies]
-sqlparser = "0.5.1"
+sqlparser = { git ="https://github.com/ballista-compute/sqlparser-rs", branch="main"}
 walkdir = "2"
 toml = "0.5"
 serde = "1"

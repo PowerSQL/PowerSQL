@@ -855,7 +855,7 @@ dependencies = [
 
 [[package]]
 name = "powersql"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "async-trait",
  "google-bigquery2",
@@ -1169,9 +1169,8 @@ checksum = "3757cb9d89161a2f24e1cf78efa0c1fcff485d18e3f55e0aa3480824ddaa0f3f"
 
 [[package]]
 name = "sqlparser"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "282582bbdc83341c48575fad4906bc1fcc317f042c98bbb5abc270c972f4c2b8"
+version = "0.5.2-alpha.0"
+source = "git+https://github.com/ballista-compute/sqlparser-rs?branch=main#c24b0e01db2bc879a1cd095b5230588967b605c5"
 dependencies = [
  "log 0.4.8",
 ]

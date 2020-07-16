@@ -4,7 +4,7 @@ mod types;
 use execute::Executor;
 use parser::PowerSqlDialect;
 use serde_derive::Deserialize;
-use sqlparser::ast::{Cte, Query, SetExpr, Statement, TableFactor};
+use sqlparser::ast::{Cte, Expr, Query, SelectItem, SetExpr, Statement, TableFactor};
 use sqlparser::parser::Parser;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -60,13 +60,20 @@ fn get_refs_table_factor(table_factor: &TableFactor, vec: &mut Vec<String>) {
     }
 }
 
-fn get_refs_set_expr(ctes: &SetExpr, vec: &mut Vec<String>) {
-    match ctes {
+fn get_refs_set_expr(body: &SetExpr, vec: &mut Vec<String>) {
+    match body {
         SetExpr::Query(q) => get_refs(q, vec),
-        SetExpr::Select(s) => s
-            .from
-            .iter()
-            .for_each(|x| get_refs_table_factor(&x.relation, vec)),
+        SetExpr::Select(s) => {
+            s.from
+                .iter()
+                .for_each(|x| get_refs_table_factor(&x.relation, vec));
+
+            s.projection.iter().for_each(|x| match x {
+                SelectItem::ExprWithAlias { expr, .. } => get_refs_expr(expr, vec),
+                SelectItem::UnnamedExpr(expr) => get_refs_expr(expr, vec),
+                _ => {}
+            });
+        }
         _ => {}
     }
 }
@@ -74,6 +81,19 @@ fn get_refs_set_expr(ctes: &SetExpr, vec: &mut Vec<String>) {
 fn get_refs(query: &Query, vec: &mut Vec<String>) {
     query.ctes.iter().for_each(|x| get_refs_cte(x, vec));
     get_refs_set_expr(&query.body, vec);
+}
+
+fn get_refs_expr(expr: &Expr, vec: &mut Vec<String>) {
+    match expr {
+        Expr::Subquery(query) => get_refs(query, vec),
+        Expr::UnaryOp { expr, .. } => get_refs_expr(expr, vec),
+        Expr::BinaryOp { left, right, .. } => {
+            get_refs_expr(left, vec);
+            get_refs_expr(right, vec);
+        }
+        // TODO: implement more expressions
+        _ => {}
+    }
 }
 
 fn load_asts(models: &[String]) -> Result<HashMap<String, Statement>, String> {
@@ -109,7 +129,8 @@ fn load_tests(models: &[String]) -> Result<Vec<Statement>, String> {
 
         for statement in statements {
             let query = match statement {
-                q @ Statement::Query(_) => q,
+                query @ Statement::Query(_) => query,
+                assert @ Statement::Assert { .. } => assert,
                 _ => unimplemented!("Only queries are supported in test files"),
             };
             res.push(query)
@@ -120,12 +141,28 @@ fn load_tests(models: &[String]) -> Result<Vec<Statement>, String> {
 
 fn get_query(statement: &Statement) -> &Query {
     match statement {
-        Statement::CreateView { query, .. } => &query,
+        Statement::CreateView { query, .. } => query,
         Statement::CreateTable {
             query: Some(query), ..
-        } => &query,
-        Statement::Query(q) => q,
+        } => query,
+        Statement::Query(query) => query,
         _ => unreachable!("Expected view, table, of query in fn get_query"),
+    }
+}
+
+fn get_refs_statement(statement: &Statement, vec: &mut Vec<String>) {
+    match statement {
+        Statement::CreateView { query, .. } => get_refs(query, vec),
+        Statement::CreateTable {
+            query: Some(query), ..
+        } => get_refs(query, vec),
+        // Statement::Query(query) => {
+        //     get_refs(query, vec);
+        // }
+        // Statement::Assert { condition, .. } => {
+        //     get_refs_expr(condition, vec);
+        // }
+        _ => unreachable!("Expected view or table in fn get_query"),
     }
 }
 
@@ -133,8 +170,7 @@ fn get_dependencies(asts: &HashMap<String, Statement>) -> HashMap<String, Vec<St
     asts.iter()
         .map(|(src, stmt)| {
             let mut x = vec![];
-            let query = get_query(stmt);
-            get_refs(&query, &mut x);
+            get_refs_statement(&stmt, &mut x);
             (
                 src.clone(),
                 x.iter()
@@ -345,12 +381,18 @@ pub async fn main() -> Result<(), String> {
             let mut executor = get_executor().await?;
 
             for test in tests {
-                let test_query = format!("SELECT COUNT(*) FROM ({:}) AS T", test);
-                let value = executor.query(test_query.as_str()).await?;
-                if value > 0 {
-                    println!("{:} errors in {:}", value, test);
-                } else {
-                    println!("OK");
+                match test {
+                    Statement::Query { .. } => {
+                        let test_query = format!("SELECT COUNT(*) FROM ({:}) AS T", test);
+                        let value = executor.query(test_query.as_str()).await?;
+                        if value > 0 {
+                            println!("{:} errors in {:}", value, test);
+                        } else {
+                            println!("OK");
+                        }
+                    }
+                    Statement::Assert { .. } => print!("Assert test found"),
+                    _ => unreachable!("Only Query & assert supported in tests"),
                 }
             }
         }
