@@ -88,8 +88,10 @@ fn get_refs(query: &Query, vec: &mut Vec<String>) {
 
 fn get_refs_expr(expr: &Expr, vec: &mut Vec<String>) {
     match expr {
-        Expr::Subquery(query) => get_refs(query, vec),
-        Expr::UnaryOp { expr, .. } => get_refs_expr(expr, vec),
+        Expr::Between { low, high, .. } => {
+            get_refs_expr(low, vec);
+            get_refs_expr(high, vec);
+        }
         Expr::BinaryOp { left, right, .. } => {
             get_refs_expr(left, vec);
             get_refs_expr(right, vec);
@@ -120,7 +122,11 @@ fn get_refs_expr(expr: &Expr, vec: &mut Vec<String>) {
         Expr::ListAgg(ListAgg { expr, .. }) => {
             get_refs_expr(expr, vec);
         }
-        // TODO: implement more expressions
+        Expr::Nested(expr) => {
+            get_refs_expr(expr, vec);
+        }
+        Expr::Subquery(query) => get_refs(query, vec),
+        Expr::UnaryOp { expr, .. } => get_refs_expr(expr, vec),
         _ => {}
     }
 }
