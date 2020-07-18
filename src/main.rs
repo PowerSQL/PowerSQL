@@ -5,7 +5,7 @@ use execute::{BackendError, Executor};
 use parser::PowerSqlDialect;
 use serde_derive::Deserialize;
 use sqlparser::ast::{
-    Cte, Expr, Function, ListAgg, Query, SelectItem, SetExpr, Statement, TableFactor,
+    Cte, Expr, Function, ListAgg, Query, SelectItem, SetExpr, Statement, TableFactor, Value,
 };
 use sqlparser::parser::Parser;
 use std::collections::HashMap;
@@ -165,8 +165,14 @@ fn load_tests(models: &[String]) -> Result<Vec<Statement>, String> {
         for statement in statements {
             let query = match statement {
                 query @ Statement::Query(_) => query,
-                assert @ Statement::Assert { .. } => assert,
-                _ => unimplemented!("Only queries are supported in test files"),
+                assert
+                @
+                Statement::Assert {
+                    message: Some(_), ..
+                } => assert,
+                _ => {
+                    unimplemented!("Only queries or assert statements are supported in test files")
+                }
             };
             res.push(query)
         }
@@ -306,6 +312,13 @@ async fn get_executor() -> Result<execute::Postgres, String> {
     execute::Postgres::new().await
 }
 
+fn expr_to_message(expr: &Expr) -> &str {
+    match expr {
+        Expr::Value(Value::SingleQuotedString(s)) => s.as_str(),
+        _ => "",
+    }
+}
+
 #[tokio::main]
 pub async fn main() -> Result<(), String> {
     let opt = Opt::from_args();
@@ -379,9 +392,6 @@ pub async fn main() -> Result<(), String> {
                 .map(|(x, _)| (*x).to_string())
                 .collect();
 
-            // let mut executor = execute::PostgresExecutor::new()
-            //     .await
-            //     .map_err(|x| format!("Connection error: {}", x))?;
             let mut executor = get_executor()
                 .await
                 .map_err(|x| format!("Connection error: {}", x))?;
@@ -415,29 +425,30 @@ pub async fn main() -> Result<(), String> {
             let tests = load_tests(&test_models)?;
             let mut executor = get_executor().await?;
 
-            for test in tests {
+            for test in tests.iter() {
                 match test {
                     Statement::Query { .. } => {
                         let test_query = format!("SELECT COUNT(*) FROM ({:}) AS T", test);
-                        let value = executor.query(test_query.as_str()).await?;
+                        let value: i64 = executor.query(test_query.as_str()).await?;
                         if value > 0 {
                             println!("{:} errors in {:}", value, test);
                         } else {
                             println!("OK");
                         }
                     }
-                    Statement::Assert { .. } => {
-                        println!("{}", test);
-                        let value = executor.execute_raw(&test).await;
+                    Statement::Assert {
+                        condition,
+                        message: Some(message),
+                    } => {
+                        print!("{}", expr_to_message(message));
 
-                        match value {
-                            Err(BackendError::TestError { message, .. }) => {
-                                println!("error: {}", message)
-                            }
-                            Err(BackendError::Message { message }) => {
-                                println!("error: {}", message)
-                            }
-                            Ok(_) => println!("OK"),
+                        let query = format!("SELECT ({}) AS x", condition);
+                        let succeeded = executor.query_bool(&query).await?;
+
+                        if succeeded {
+                            println!("...OK")
+                        } else {
+                            println!("...ERROR")
                         }
                     }
                     _ => unreachable!("Only Query & assert supported in tests"),

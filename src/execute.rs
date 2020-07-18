@@ -2,7 +2,7 @@ use sqlparser::ast::Statement;
 
 use std::env;
 #[cfg(feature = "postgres")]
-use tokio_postgres::{Client, NoTls};
+use tokio_postgres::{types, Client, NoTls};
 #[cfg(feature = "bigquery")]
 extern crate google_bigquery2 as bigquery2;
 #[cfg(feature = "bigquery")]
@@ -26,6 +26,7 @@ pub trait Executor {
     async fn execute_raw(&mut self, stmt: &Statement) -> Result<(), BackendError>;
 
     async fn query(&mut self, query: &str) -> Result<i64, String>;
+    async fn query_bool(&mut self, query: &str) -> Result<bool, String>;
 }
 
 pub enum BackendError {
@@ -131,6 +132,14 @@ impl Executor for Postgres {
             .map(|x| x[0].get(0))
             .map_err(|x| format!("Failed to run query {}", x))
     }
+
+    async fn query_bool(&mut self, query: &str) -> Result<bool, String> {
+        self.client
+            .query(query, &[])
+            .await
+            .map(|x| x[0].get(0))
+            .map_err(|x| format!("Failed to run query {}", x))
+    }
 }
 #[cfg(feature = "bigquery")]
 pub struct BigqueryRunner {
@@ -213,9 +222,9 @@ impl Executor for BigqueryRunner {
     async fn execute(&mut self, name: &str, stmt: &Statement) -> Result<(), String> {
         // TODO use CREATE OR REPLACE
         let drop_query = self.build_query(&format!("DROP VIEW IF EXISTS {}", name));
-        self.run_query(drop_query);
+        let _ = self.run_query(drop_query);
         let drop_query = self.build_query(&format!("DROP TABLE IF EXISTS {}", name));
-        self.run_query(drop_query);
+        let _ = self.run_query(drop_query);
 
         let query = self.build_query(&format!("{}", stmt));
         self.run_query(query).map_err(|x| x.get_message())?;
@@ -232,6 +241,18 @@ impl Executor for BigqueryRunner {
             .as_ref()
             .unwrap()
             .parse::<i64>()
+            .unwrap())
+    }
+
+    async fn query_bool(&mut self, query: &str) -> Result<bool, String> {
+        let query = self.build_query(query);
+        let res = self.run_query(query).map_err(|x| x.get_message())?;
+        println!("{:?}", res);
+        Ok(res.rows.unwrap()[0].clone().f.unwrap()[0]
+            .v
+            .as_ref()
+            .unwrap()
+            .parse::<bool>()
             .unwrap())
     }
 }
