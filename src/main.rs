@@ -28,8 +28,11 @@ struct Project {
 enum Command {
     Check,
     Run,
-    Docs,
-    Test,
+    Test {
+        #[structopt(long)]
+        fail_fast: bool,
+    },
+    //Docs,
 }
 
 #[derive(Debug, StructOpt)]
@@ -409,15 +412,16 @@ pub async fn main() -> Result<(), String> {
                 }
             }
         }
-        Command::Docs => {
-            let arrows: Vec<String> = dependencies
-                .iter()
-                .flat_map(|(x, y)| y.iter().map(move |z| format!("{z} -> {x}", x = x, z = z)))
-                .collect();
+        // Command::Docs => {
+        //     let arrows: Vec<String> = dependencies
+        //         .iter()
+        //         .flat_map(|(x, y)| y.iter().map(move |z| format!("{z} -> {x}", x = x, z = z)))
+        //         .collect();
 
-            print!("{:?}", arrows);
-        }
-        Command::Test => {
+        //     print!("{:?}", arrows);
+        // }
+        Command::Test { fail_fast } => {
+            let mut exit_code = 0;
             let test_models = find_test_files(config.project.tests);
             let tests = load_tests(&test_models)?;
             let mut executor = get_executor().await?;
@@ -436,15 +440,20 @@ pub async fn main() -> Result<(), String> {
                         if succeeded {
                             println!("...OK")
                         } else {
+                            if fail_fast {
+                                std::process::exit(1);
+                            }
+                            exit_code = 1;
+
                             println!("...ERROR")
                         }
                     }
                     _ => unreachable!("Only Query & assert supported in tests"),
                 }
             }
+            std::process::exit(exit_code);
         }
     }
-
     Ok(())
 }
 
