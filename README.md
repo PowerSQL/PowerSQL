@@ -88,26 +88,13 @@ To run against the database, provide the following environment variables:
 
 ## Data tests
 
-Data tests are SQL queries or Assert statements that you can run on your database tables and views and perform checks on data quality, recency, etc.
-The test fails if the query returns 1 or more rows.
-
-Assert-based testing are enabled for every backend, they are translated by powersql to queries return a
+Data tests are `ASSERT` statements that you can run on your database tables and views and perform checks on data quality, recency, etc. Assert statements checks the result of a condition - a boolean expression.
+Assert-based testing are enabled for every backend, they are translated by PowerSQL to queries return a
 boolean.
 
 Some examples:
 ```sql
--- NULL check
-SELECT 1 FROM t WHERE column IS NULL;
--- Check values
-SELECT 1 FROM t WHERE amount < 0;
--- Check relations
-SELECT 1 FROM t LEFT JOIN u ON t.id = u.id WHERE u.id IS NULL;
--- Prefix check
-SELECT 1 FROM t WHERE NOT STARTS_WITH(str_column, "http");
-
-
--- ASSERT tests examples
--- NOT NULL
+-- Column should be NOT NULL
 ASSERT NOT EXISTS(
   SELECT X
   FROM t

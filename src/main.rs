@@ -164,15 +164,12 @@ fn load_tests(models: &[String]) -> Result<Vec<Statement>, String> {
 
         for statement in statements {
             let query = match statement {
-                query @ Statement::Query(_) => query,
                 assert
                 @
                 Statement::Assert {
                     message: Some(_), ..
                 } => assert,
-                _ => {
-                    unimplemented!("Only queries or assert statements are supported in test files")
-                }
+                _ => unimplemented!("Only assert statements are supported in test files"),
             };
             res.push(query)
         }
@@ -427,15 +424,6 @@ pub async fn main() -> Result<(), String> {
 
             for test in tests.iter() {
                 match test {
-                    Statement::Query { .. } => {
-                        let test_query = format!("SELECT COUNT(*) FROM ({:}) AS T", test);
-                        let value: i64 = executor.query(test_query.as_str()).await?;
-                        if value > 0 {
-                            println!("{:} errors in {:}", value, test);
-                        } else {
-                            println!("OK");
-                        }
-                    }
                     Statement::Assert {
                         condition,
                         message: Some(message),

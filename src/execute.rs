@@ -24,8 +24,6 @@ pub trait Executor {
         Self: Sized;
     async fn execute(&mut self, name: &str, stmt: &Statement) -> Result<(), String>;
     async fn execute_raw(&mut self, stmt: &Statement) -> Result<(), BackendError>;
-
-    async fn query(&mut self, query: &str) -> Result<i64, String>;
     async fn query_bool(&mut self, query: &str) -> Result<bool, String>;
 }
 
@@ -123,14 +121,6 @@ impl Executor for Postgres {
                 message: format!("{}", x),
             })?;
         Ok(())
-    }
-
-    async fn query(&mut self, query: &str) -> Result<i64, String> {
-        self.client
-            .query(query, &[])
-            .await
-            .map(|x| x[0].get(0))
-            .map_err(|x| format!("Failed to run query {}", x))
     }
 
     async fn query_bool(&mut self, query: &str) -> Result<bool, String> {
@@ -232,22 +222,9 @@ impl Executor for BigqueryRunner {
         Ok(())
     }
 
-    async fn query(&mut self, query: &str) -> Result<i64, String> {
-        let query = self.build_query(query);
-        let res = self.run_query(query).map_err(|x| x.get_message())?;
-        println!("{:?}", res);
-        Ok(res.rows.unwrap()[0].clone().f.unwrap()[0]
-            .v
-            .as_ref()
-            .unwrap()
-            .parse::<i64>()
-            .unwrap())
-    }
-
     async fn query_bool(&mut self, query: &str) -> Result<bool, String> {
         let query = self.build_query(query);
         let res = self.run_query(query).map_err(|x| x.get_message())?;
-        println!("{:?}", res);
         Ok(res.rows.unwrap()[0].clone().f.unwrap()[0]
             .v
             .as_ref()

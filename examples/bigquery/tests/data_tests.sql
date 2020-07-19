@@ -1,13 +1,16 @@
-SELECT 1
-FROM rev_per_product
-    LEFT JOIN revenue ON rev_per_product.product_id = revenue.product_id
-WHERE revenue.product_id IS NULL;
-SELECT 1
-FROM revenue
-WHERE euro <= 0;
-SELECT 1
-FROM rev_per_product
-WHERE quantity <= 0;
-ASSERT
-1 = 2
-AS 'Table must contain more than 0 rows.';
+ASSERT NOT EXISTS (
+    SELECT 1
+    FROM rev_per_product
+        LEFT JOIN revenue ON rev_per_product.product_id = revenue.product_id
+    WHERE revenue.product_id IS NULL
+) AS 'Referential integrity rev_per_product on product_id';
+ASSERT NOT EXISTS (
+    SELECT euro
+    FROM revenue
+    WHERE euro <= 0
+) AS 'Euro should be positive';
+ASSERT NOT EXISTS (
+    SELECT quantity
+    FROM rev_per_product
+    WHERE quantity <= 0
+) AS 'Quantity should be positive';
