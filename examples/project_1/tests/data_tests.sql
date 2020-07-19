@@ -7,8 +7,8 @@ ASSERT NOT EXISTS (
 ASSERT NOT EXISTS (
     SELECT euro
     FROM revenue
-    WHERE euro <= 0
-) AS 'Euro should be positive';
+    WHERE euro < 0
+) AS 'Euro should be at least zero';
 ASSERT NOT EXISTS (
     SELECT quantity
     FROM rev_per_product

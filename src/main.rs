@@ -1,7 +1,7 @@
 mod execute;
 mod parser;
 mod types;
-use execute::{BackendError, Executor};
+use execute::Executor;
 use parser::PowerSqlDialect;
 use serde_derive::Deserialize;
 use sqlparser::ast::{
@@ -430,7 +430,7 @@ pub async fn main() -> Result<(), String> {
                     } => {
                         print!("{}", expr_to_message(message));
 
-                        let query = format!("SELECT ({}) AS x", condition);
+                        let query = format!("SELECT ({}) AS condition", condition);
                         let succeeded = executor.query_bool(&query).await?;
 
                         if succeeded {

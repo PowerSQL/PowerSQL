@@ -29,14 +29,12 @@ pub trait Executor {
 
 pub enum BackendError {
     Message { message: String },
-    TestError { message: String, code: usize },
 }
 
 impl BackendError {
     fn get_message(self) -> String {
         match self {
             BackendError::Message { message } => message,
-            BackendError::TestError { message, code } => message,
         }
     }
 }
