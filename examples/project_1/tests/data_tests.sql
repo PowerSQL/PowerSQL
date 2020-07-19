@@ -26,4 +26,4 @@ ASSERT (
 ) >= 0.7 * (
     SELECT COUNT(*)
     FROM rev_per_product
-) AS 'At least 70% should have a quantity lower than 0.7'
+) AS 'At least 70% should have a quantity lower than 10'
