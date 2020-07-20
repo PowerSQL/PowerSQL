@@ -8,12 +8,12 @@ ASSERT NOT EXISTS (
     SELECT euro
     FROM revenue
     WHERE euro < 0
-) AS 'Euro should be at least zero';
+) AS 'euro should be at least zero';
 ASSERT NOT EXISTS (
     SELECT quantity
     FROM rev_per_product
     WHERE quantity <= 0
-) AS 'Quantity should be positive';
+) AS 'quantity should be positive';
 ASSERT NOT EXISTS (
     SELECT product_id
     FROM rev_per_product
