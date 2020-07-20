@@ -4,7 +4,9 @@ mod types;
 use execute::Executor;
 use parser::PowerSqlDialect;
 use serde_derive::Deserialize;
-use sqlparser::ast::{Cte, Query, SetExpr, Statement, TableFactor};
+use sqlparser::ast::{
+    Cte, Expr, Function, ListAgg, Query, SelectItem, SetExpr, Statement, TableFactor, Value,
+};
 use sqlparser::parser::Parser;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -26,8 +28,11 @@ struct Project {
 enum Command {
     Check,
     Run,
-    Docs,
-    Test,
+    Test {
+        #[structopt(long)]
+        fail_fast: bool,
+    },
+    //Docs,
 }
 
 #[derive(Debug, StructOpt)]
@@ -60,13 +65,21 @@ fn get_refs_table_factor(table_factor: &TableFactor, vec: &mut Vec<String>) {
     }
 }
 
-fn get_refs_set_expr(ctes: &SetExpr, vec: &mut Vec<String>) {
-    match ctes {
+fn get_refs_set_expr(body: &SetExpr, vec: &mut Vec<String>) {
+    match body {
         SetExpr::Query(q) => get_refs(q, vec),
-        SetExpr::Select(s) => s
-            .from
-            .iter()
-            .for_each(|x| get_refs_table_factor(&x.relation, vec)),
+        SetExpr::Select(select) => {
+            select
+                .from
+                .iter()
+                .for_each(|table| get_refs_table_factor(&table.relation, vec));
+
+            select.projection.iter().for_each(|x| match x {
+                SelectItem::ExprWithAlias { expr, .. } => get_refs_expr(expr, vec),
+                SelectItem::UnnamedExpr(expr) => get_refs_expr(expr, vec),
+                _ => {}
+            });
+        }
         _ => {}
     }
 }
@@ -74,6 +87,51 @@ fn get_refs_set_expr(ctes: &SetExpr, vec: &mut Vec<String>) {
 fn get_refs(query: &Query, vec: &mut Vec<String>) {
     query.ctes.iter().for_each(|x| get_refs_cte(x, vec));
     get_refs_set_expr(&query.body, vec);
+}
+
+fn get_refs_expr(expr: &Expr, vec: &mut Vec<String>) {
+    match expr {
+        Expr::Between { low, high, .. } => {
+            get_refs_expr(low, vec);
+            get_refs_expr(high, vec);
+        }
+        Expr::BinaryOp { left, right, .. } => {
+            get_refs_expr(left, vec);
+            get_refs_expr(right, vec);
+        }
+        Expr::Cast { expr, .. } => {
+            get_refs_expr(expr, vec);
+        }
+        Expr::Collate { expr, .. } => {
+            get_refs_expr(expr, vec);
+        }
+        Expr::Exists(query) => get_refs(query, vec),
+        Expr::Extract { expr, .. } => get_refs_expr(expr, vec),
+        Expr::Function(Function { args, .. }) => {
+            for arg in args {
+                get_refs_expr(arg, vec);
+            }
+        }
+        Expr::InSubquery { expr, subquery, .. } => {
+            get_refs_expr(expr, vec);
+            get_refs(subquery, vec);
+        }
+        Expr::IsNotNull(expr) => {
+            get_refs_expr(expr, vec);
+        }
+        Expr::IsNull(expr) => {
+            get_refs_expr(expr, vec);
+        }
+        Expr::ListAgg(ListAgg { expr, .. }) => {
+            get_refs_expr(expr, vec);
+        }
+        Expr::Nested(expr) => {
+            get_refs_expr(expr, vec);
+        }
+        Expr::Subquery(query) => get_refs(query, vec),
+        Expr::UnaryOp { expr, .. } => get_refs_expr(expr, vec),
+        _ => {}
+    }
 }
 
 fn load_asts(models: &[String]) -> Result<HashMap<String, Statement>, String> {
@@ -109,8 +167,12 @@ fn load_tests(models: &[String]) -> Result<Vec<Statement>, String> {
 
         for statement in statements {
             let query = match statement {
-                q @ Statement::Query(_) => q,
-                _ => unimplemented!("Only queries are supported in test files"),
+                assert
+                @
+                Statement::Assert {
+                    message: Some(_), ..
+                } => assert,
+                _ => unimplemented!("Only assert statements are supported in test files"),
             };
             res.push(query)
         }
@@ -120,12 +182,28 @@ fn load_tests(models: &[String]) -> Result<Vec<Statement>, String> {
 
 fn get_query(statement: &Statement) -> &Query {
     match statement {
-        Statement::CreateView { query, .. } => &query,
+        Statement::CreateView { query, .. } => query,
         Statement::CreateTable {
             query: Some(query), ..
-        } => &query,
-        Statement::Query(q) => q,
+        } => query,
+        Statement::Query(query) => query,
         _ => unreachable!("Expected view, table, of query in fn get_query"),
+    }
+}
+
+fn get_refs_statement(statement: &Statement, vec: &mut Vec<String>) {
+    match statement {
+        Statement::CreateView { query, .. } => get_refs(query, vec),
+        Statement::CreateTable {
+            query: Some(query), ..
+        } => get_refs(query, vec),
+        // Statement::Query(query) => {
+        //     get_refs(query, vec);
+        // }
+        // Statement::Assert { condition, .. } => {
+        //     get_refs_expr(condition, vec);
+        // }
+        _ => unreachable!("Expected view or table in fn get_query"),
     }
 }
 
@@ -133,8 +211,7 @@ fn get_dependencies(asts: &HashMap<String, Statement>) -> HashMap<String, Vec<St
     asts.iter()
         .map(|(src, stmt)| {
             let mut x = vec![];
-            let query = get_query(stmt);
-            get_refs(&query, &mut x);
+            get_refs_statement(&stmt, &mut x);
             (
                 src.clone(),
                 x.iter()
@@ -222,7 +299,7 @@ fn find_test_files(tests: Option<Vec<String>>) -> Vec<String> {
             }
         }
     }
-    return tests_models;
+    tests_models
 }
 
 #[cfg(feature = "bigquery")]
@@ -233,6 +310,13 @@ async fn get_executor() -> Result<execute::BigqueryRunner, String> {
 #[cfg(feature = "postgres")]
 async fn get_executor() -> Result<execute::Postgres, String> {
     execute::Postgres::new().await
+}
+
+fn expr_to_message(expr: &Expr) -> &str {
+    match expr {
+        Expr::Value(Value::SingleQuotedString(s)) => s.as_str(),
+        _ => "",
+    }
 }
 
 #[tokio::main]
@@ -308,19 +392,13 @@ pub async fn main() -> Result<(), String> {
                 .map(|(x, _)| (*x).to_string())
                 .collect();
 
-            // let mut executor = execute::PostgresExecutor::new()
-            //     .await
-            //     .map_err(|x| format!("Connection error: {}", x))?;
             let mut executor = get_executor()
                 .await
                 .map_err(|x| format!("Connection error: {}", x))?;
 
             while let Some(m) = nodes.pop() {
                 println!("Executing {}", m);
-                executor
-                    .execute(&m, asts.get(&m).unwrap())
-                    .await
-                    .map_err(|_x| format!("{}", _x))?;
+                executor.execute(&m, asts.get(&m).unwrap()).await?;
                 println!("Ready {}", m);
                 println!("Graph {:?}", graph);
 
@@ -334,31 +412,48 @@ pub async fn main() -> Result<(), String> {
                 }
             }
         }
-        Command::Docs => {
-            let arrows: Vec<String> = dependencies
-                .iter()
-                .flat_map(|(x, y)| y.iter().map(move |z| format!("{z} -> {x}", x = x, z = z)))
-                .collect();
+        // Command::Docs => {
+        //     let arrows: Vec<String> = dependencies
+        //         .iter()
+        //         .flat_map(|(x, y)| y.iter().map(move |z| format!("{z} -> {x}", x = x, z = z)))
+        //         .collect();
 
-            print!("{:?}", arrows);
-        }
-        Command::Test => {
+        //     print!("{:?}", arrows);
+        // }
+        Command::Test { fail_fast } => {
+            let mut exit_code = 0;
             let test_models = find_test_files(config.project.tests);
             let tests = load_tests(&test_models)?;
             let mut executor = get_executor().await?;
 
-            for test in tests {
-                let test_query = format!("SELECT COUNT(*) FROM ({:}) AS T", test);
-                let value = executor.query(test_query.as_str()).await?;
-                if value > 0 {
-                    println!("{:} errors in {:}", value, test);
-                } else {
-                    println!("OK");
+            for test in tests.iter() {
+                match test {
+                    Statement::Assert {
+                        condition,
+                        message: Some(message),
+                    } => {
+                        print!("{}", expr_to_message(message));
+
+                        let query = format!("SELECT ({}) AS condition", condition);
+                        let succeeded = executor.query_bool(&query).await?;
+
+                        if succeeded {
+                            println!("...OK")
+                        } else {
+                            if fail_fast {
+                                std::process::exit(1);
+                            }
+                            exit_code = 1;
+
+                            println!("...ERROR")
+                        }
+                    }
+                    _ => unreachable!("Only Query & assert supported in tests"),
                 }
             }
+            std::process::exit(exit_code);
         }
     }
-
     Ok(())
 }
 

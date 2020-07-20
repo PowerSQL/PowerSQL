@@ -123,7 +123,7 @@ fn build_local_type_env(
             let ty = get_model_type(subquery, type_env.clone())?;
             type_env = type_env.update(format!("{}", alias.name), ty);
         }
-        TableFactor::Derived { .. } => Err("Derived tables should have alias".to_string())?,
+        TableFactor::Derived { .. } => return Err("Derived tables should have alias".to_string()),
     }
     Ok((unknown_sources, type_env))
 }
