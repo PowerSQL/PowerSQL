@@ -160,14 +160,11 @@ impl BigqueryRunner {
             .query(query, &self.project_id)
             .doit()
             .map(|(_r, q)| q)
-            .map_err(|x|
-                //if matches!(response, Error::BadRequest(r) if )
-                match x {
-                    Error::BadRequest(response) if response.error.code == 400 => {
-                        BackendError::TestError{message: response.error.message, code: 400}
-                    }
-                    _ => BackendError::Message{message:format!("{}", x)}
-                });
+            .map_err(|x| match x {
+                _ => BackendError::Message {
+                    message: format!("{}", x),
+                },
+            });
     }
 }
 
