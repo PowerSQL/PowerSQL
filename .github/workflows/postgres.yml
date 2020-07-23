@@ -28,9 +28,12 @@ jobs:
       - name: Run postgres CI/CD
         run: |
           cd examples/project_1/
+          pip install pandas
+          python import_data/import.py
           cargo run --features postgres run
         env:
           PG_PASSWORD: postgres
           PG_HOSTNAME: postgres
           PG_USERNAME: postgres
           PG_DATABASE: postgres
+          PG_PORT: 5432
