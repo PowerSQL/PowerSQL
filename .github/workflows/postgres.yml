@@ -32,5 +32,5 @@ jobs:
         env:
           PG_PASSWORD: postgres
           PG_HOSTNAME: postgres
-          PG_PASSWORD: postgres
+          PG_USERNAME: postgres
           PG_DATABASE: postgres
