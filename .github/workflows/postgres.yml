@@ -25,5 +25,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: Run tests
-        run: cargo test --features postgres --verbose
+      - name: Run postgres CI/CD
+        run: |
+          cd examples/project_1/
+          cargo run run --features postgres --verbose
