@@ -32,7 +32,7 @@ jobs:
           cargo run --features postgres test
         env:
           PG_PASSWORD: postgres
-          PG_HOSTNAME: localhost
+          PG_HOSTNAME: postgres
           PG_USERNAME: postgres
           PG_DATABASE: postgres
           PG_PORT: 5432
