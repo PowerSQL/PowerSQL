@@ -1,0 +1,12 @@
+pull_request_rules:
+  - name: Automatic merge on approval
+    conditions:
+      - status-success=PostgreSQL integration test
+      - status-success=Tests
+      - "#approved-reviews-by>=1"
+    actions:
+      merge:
+        method: merge
+      comment:
+        message: |
+          Thanks for the contribution @{{author}}!
