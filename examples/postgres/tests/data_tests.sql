@@ -2,7 +2,7 @@ ASSERT NOT EXISTS (
     SELECT 1
     FROM rev_per_product
         LEFT JOIN revenue ON rev_per_product.product_id = revenue.product_id
-    WHERE revenue.product_id IS NOT NULL
+    WHERE revenue.product_id IS NULL
 ) AS 'Referential integrity rev_per_product on product_id';
 ASSERT NOT EXISTS (
     SELECT euro
@@ -18,7 +18,7 @@ ASSERT NOT EXISTS (
     SELECT product_id
     FROM rev_per_product
     WHERE product_id IS NULL
-) AS 'Product_id should be not null';
+) AS 'product_id should be not null';
 ASSERT (
     SELECT COUNT (*)
     FROM rev_per_product
@@ -26,4 +26,4 @@ ASSERT (
 ) >= 0.7 * (
     SELECT COUNT(*)
     FROM rev_per_product
-) AS 'At least 70% should have a quantity lower than 10'
+) AS 'At least 70% should have a quantity lower than 10';
