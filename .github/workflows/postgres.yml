@@ -28,9 +28,8 @@ jobs:
       - name: Run postgres CI/CD
         run: |
           cd examples/project_1/
-          pip install pandas SQLAlchemy
-          python import_data/import.py
           cargo run --features postgres run
+          cargo run --features postgres test
         env:
           PG_PASSWORD: postgres
           PG_HOSTNAME: postgres

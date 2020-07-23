@@ -1,11 +1,9 @@
-CREATE MATERIALIZED VIEW revenue AS
-SELECT CAST(product_id AS VARCHAR) product_id,
-    euro
-FROM product_sales;
+CREATE VIEW revenue AS
+SELECT CAST('abc' AS VARCHAR) AS product_id,
+    1.0 AS euro;
 CREATE VIEW rev_per_product AS
 SELECT SUM(euro) AS rev,
     COUNT(*) quantity,
     product_id
 FROM revenue
 GROUP BY product_id;
---SELECT * FROM rev_per_product ORDER by quantity DESC LIMIT 100;
