@@ -99,7 +99,7 @@ ASSERT NOT EXISTS(
   SELECT X
   FROM t
   WHERE column IS NULL
-)
+) AS 'column should be non null';
 ASSERT NOT EXISTS (
     SELECT quantity
     FROM rev_per_product
