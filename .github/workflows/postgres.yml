@@ -28,4 +28,9 @@ jobs:
       - name: Run postgres CI/CD
         run: |
           cd examples/project_1/
-          cargo run run --features postgres --verbose
+          cargo run --features postgres run
+        env:
+          PG_PASSWORD: postgres
+          PG_HOSTNAME: postgres
+          PG_PASSWORD: postgres
+          PG_DATABASE: postgres
