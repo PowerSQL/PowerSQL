@@ -6,7 +6,6 @@ jobs:
   container-job:
     # Containers must run in Linux based operating systems
     runs-on: ubuntu-latest
-    container: ubuntu
     # Service containers to run with `container-job`
     services:
       # Label used to access the service container
@@ -22,6 +21,9 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+        ports:
+          # Maps tcp port 5432 on service container to the host
+          - 5432:5432
 
     steps:
       - uses: actions/checkout@v2
@@ -32,7 +34,7 @@ jobs:
           cargo run --features postgres test
         env:
           PG_PASSWORD: postgres
-          PG_HOSTNAME: postgres
+          PG_HOSTNAME: localhost
           PG_USERNAME: postgres
           PG_DATABASE: postgres
           PG_PORT: 5432
