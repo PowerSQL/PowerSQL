@@ -385,9 +385,13 @@ pub async fn main() -> Result<(), String> {
                         condition,
                         message: Some(message),
                     } => {
-                        // TODO check non-boolean
                         let ty =
                             types::expr_type(&condition, &HashMap::new(), ty_env.clone(), true)?;
+
+                        match ty {
+                            types::BaseType::Any | types::BaseType::Boolean => {}
+                            _ => return Err(format!("Expected boolean in test, got {:?}", ty)),
+                        }
                     }
                     _ => unreachable!("Only assert supported in tests"),
                 }
