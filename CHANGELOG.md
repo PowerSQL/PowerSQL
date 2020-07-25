@@ -1,5 +1,16 @@
 ## [Unreleased]
 
+
+## [0.3.1] - 2020-07-25
+
+### Fixed
+
+- Fixed an error in `powersql check` for tests
+
+### Internal
+
+- Added continuous integration for PostgreSQL database
+
 ## [0.3.0] - 2020-07-20
 
 ### Added

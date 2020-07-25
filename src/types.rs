@@ -44,18 +44,21 @@ fn map_data_type(data_type: &DataType) -> BaseType {
     }
 }
 
-fn expr_type(
+pub fn expr_type(
     expr: &Expr,
-    type_env: &HashMap<String, BaseType>,
+    local_type_env: &HashMap<String, BaseType>,
+    mut type_env: im::HashMap<String, TableType>,
     open: bool,
 ) -> Result<BaseType, String> {
     match expr {
         Expr::Value(v) => Ok(value_type(v)),
         Expr::Identifier(s) => {
             if open {
-                Ok(*type_env.get(&format!("{}", s)).unwrap_or(&BaseType::Any))
+                Ok(*local_type_env
+                    .get(&format!("{}", s))
+                    .unwrap_or(&BaseType::Any))
             } else {
-                type_env
+                local_type_env
                     .get(&format!("{}", s))
                     .copied()
                     .ok_or_else(|| format!("identifier {} not found", s))
@@ -66,9 +69,26 @@ fn expr_type(
             expr: cast_expr,
             data_type,
         } => {
-            let _ = expr_type(cast_expr, type_env, open)?;
+            let _ = expr_type(cast_expr, local_type_env, type_env, open)?;
             // TODO compatible / incompatible casting
             Ok(map_data_type(&data_type))
+        }
+        Expr::Exists(query) => {
+            get_model_type(query, type_env)?;
+            Ok(BaseType::Boolean)
+        }
+        Expr::UnaryOp { expr, op } => {
+            let ty = expr_type(expr, local_type_env, type_env, open)?;
+
+            match (op, ty) {
+                (_, BaseType::Any) => Ok(BaseType::Any),
+                (sqlparser::ast::UnaryOperator::Plus, BaseType::Number) => Ok(BaseType::Number),
+                (sqlparser::ast::UnaryOperator::Plus, BaseType::Float) => Ok(BaseType::Float),
+                (sqlparser::ast::UnaryOperator::Minus, BaseType::Number) => Ok(BaseType::Number),
+                (sqlparser::ast::UnaryOperator::Minus, BaseType::Float) => Ok(BaseType::Float),
+                (sqlparser::ast::UnaryOperator::Not, BaseType::Boolean) => Ok(BaseType::Boolean),
+                (a, b) => Err(format!("Could not combine {:?} with {:?}", a, b)),
+            }
         }
         // TODO extend
         _ => Ok(BaseType::Any),
@@ -162,12 +182,18 @@ pub fn get_model_type(
             for p in &select.projection {
                 match p {
                     SelectItem::ExprWithAlias { expr, alias } => {
-                        let ty = expr_type(&expr, &local_type_env, unknown_sources)?;
+                        let ty =
+                            expr_type(&expr, &local_type_env, type_env.clone(), unknown_sources)?;
                         items.push((alias.to_string(), ty));
                     }
                     SelectItem::UnnamedExpr(expr) => match expr {
                         Expr::Identifier(id) => {
-                            let ty = expr_type(&expr, &local_type_env, unknown_sources)?;
+                            let ty = expr_type(
+                                &expr,
+                                &local_type_env,
+                                type_env.clone(),
+                                unknown_sources,
+                            )?;
                             items.push((id.to_string(), ty))
                         }
                         _ => {}
