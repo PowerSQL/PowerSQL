@@ -203,7 +203,7 @@ fn get_refs_statement(statement: &Statement, vec: &mut Vec<String>) {
         // Statement::Assert { condition, .. } => {
         //     get_refs_expr(condition, vec);
         // }
-        _ => unreachable!("Expected view or table in fn get_query"),
+        _ => unreachable!("Expected view or table in fn get_refs_statement"),
     }
 }
 
@@ -380,7 +380,17 @@ pub async fn main() -> Result<(), String> {
             let tests = load_tests(&test_models)?;
 
             for test in tests {
-                types::get_model_type(get_query(&test), ty_env.clone())?;
+                match test {
+                    Statement::Assert {
+                        condition,
+                        message: Some(message),
+                    } => {
+                        // TODO check non-boolean
+                        let ty =
+                            types::expr_type(&condition, &HashMap::new(), ty_env.clone(), true)?;
+                    }
+                    _ => unreachable!("Only assert supported in tests"),
+                }
             }
         }
         Command::Run => {
@@ -448,7 +458,7 @@ pub async fn main() -> Result<(), String> {
                             println!("...ERROR")
                         }
                     }
-                    _ => unreachable!("Only Query & assert supported in tests"),
+                    _ => unreachable!("Only assert supported in tests"),
                 }
             }
             std::process::exit(exit_code);
