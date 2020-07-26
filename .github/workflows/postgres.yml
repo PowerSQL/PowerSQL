@@ -34,6 +34,7 @@ jobs:
           cargo run --features postgres run
           cargo run --features postgres run
           cargo run --features postgres test
+          cargo run --features postgres docs
         env:
           PG_PASSWORD: postgres
           PG_HOSTNAME: localhost
