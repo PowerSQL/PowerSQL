@@ -1170,8 +1170,7 @@ checksum = "3757cb9d89161a2f24e1cf78efa0c1fcff485d18e3f55e0aa3480824ddaa0f3f"
 [[package]]
 name = "sqlparser"
 version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53fa7478852b3ea28f0d21a42b2d7dade24ba4aa72e22bf66982e4b587a7f608"
+source = "git+https://github.com/ballista-compute/sqlparser-rs?rev=9e7e30282e737ebd8607775ec93334d1df8932d2#9e7e30282e737ebd8607775ec93334d1df8932d2"
 dependencies = [
  "log 0.4.11",
 ]

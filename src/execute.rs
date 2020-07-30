@@ -205,11 +205,10 @@ impl Executor for BigqueryRunner {
     }
 
     async fn execute(&mut self, name: &str, stmt: &Statement) -> Result<(), String> {
-        // TODO use CREATE OR REPLACE
-        let drop_query = self.build_query(&format!("DROP VIEW IF EXISTS {}", name));
-        let _ = self.run_query(drop_query);
-        let drop_query = self.build_query(&format!("DROP TABLE IF EXISTS {}", name));
-        let _ = self.run_query(drop_query);
+        // let drop_query = self.build_query(&format!("DROP VIEW IF EXISTS {}", name));
+        // let _ = self.run_query(drop_query);
+        // let drop_query = self.build_query(&format!("DROP TABLE IF EXISTS {}", name));
+        // let _ = self.run_query(drop_query);
 
         let query = self.build_query(&format!("{}", stmt));
         self.run_query(query).map_err(|x| x.get_message())?;

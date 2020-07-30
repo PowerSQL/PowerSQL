@@ -14,7 +14,7 @@ postgres = ["tokio-postgres"]
 bigquery = ["google-bigquery2", "hyper", "hyper-rustls", "serde_json", "yup-oauth2"]
 
 [dependencies]
-sqlparser = "0.6.1"
+sqlparser = { git = "https://github.com/ballista-compute/sqlparser-rs", rev="9e7e30282e737ebd8607775ec93334d1df8932d2"}
 walkdir = "2"
 toml = "0.5"
 serde = "1"
