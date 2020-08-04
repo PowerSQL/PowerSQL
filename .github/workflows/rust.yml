@@ -7,9 +7,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+      - name: Install Tarpaulin
+        uses: actions-rs/install@v0.1
+        with:
+          crate: cargo-tarpaulin
+          version: 0.14.2
+          use-tool-cache: true
       - name: Build
         run: cargo build --verbose --features postgres
       - name: Run style check
         run: cargo clippy --features postgres
       - name: Run tests
         run: cargo test --verbose --features postgres
+      - name: Check coverage
+        run: cargo tarpaulin --features postgres
