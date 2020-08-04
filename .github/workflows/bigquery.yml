@@ -1,0 +1,23 @@
+name: BigQuery integration test
+on: push
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run BigQuery CI/CD
+        run: |
+          echo "$GOOGLE_APPLICATION_CREDENTIALS" > application.json
+          export GOOGLE_APPLICATION_CREDENTIALS=$(pwd)/application.json
+
+          cd examples/bigquery/
+          cargo run --features bigquery check
+          cargo run --features bigquery run
+          cargo run --features bigquery run
+          cargo run --features bigquery test
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{secrets.GOOGLE_APPLICATION_CREDENTIALS}}
+          DATASET_ID: bla
+          PROJECT_ID: website-main
