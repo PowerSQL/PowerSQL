@@ -16,7 +16,7 @@ jobs:
           cargo run --features bigquery check
           cargo run --features bigquery run
           cargo run --features bigquery run
-          cargo run --features postgres test
+          cargo run --features bigquery test
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{secrets.GOOGLE_APPLICATION_CREDENTIALS}}
           DATASET_ID: bla
