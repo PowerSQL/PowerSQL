@@ -22,7 +22,7 @@ pub trait Executor {
     async fn new() -> Result<Self, String>
     where
         Self: Sized;
-    async fn execute(&mut self, name: &str, stmt: &Statement) -> Result<(), String>;
+    async fn execute(&mut self, name: &str, stmt: &mut Statement) -> Result<(), String>;
     async fn execute_raw(&mut self, stmt: &Statement) -> Result<(), BackendError>;
     async fn query_bool(&mut self, query: &str) -> Result<bool, String>;
 }
@@ -74,7 +74,7 @@ impl Executor for Postgres {
 
         Ok(Postgres { client })
     }
-    async fn execute(&mut self, name: &str, stmt: &Statement) -> Result<(), String> {
+    async fn execute(&mut self, name: &str, stmt: &mut Statement) -> Result<(), String> {
         let _ = self
             .client
             .execute(
@@ -204,11 +204,20 @@ impl Executor for BigqueryRunner {
         Ok(())
     }
 
-    async fn execute(&mut self, name: &str, stmt: &Statement) -> Result<(), String> {
-        // let drop_query = self.build_query(&format!("DROP VIEW IF EXISTS {}", name));
-        // let _ = self.run_query(drop_query);
-        // let drop_query = self.build_query(&format!("DROP TABLE IF EXISTS {}", name));
-        // let _ = self.run_query(drop_query);
+    async fn execute(&mut self, name: &str, stmt: &mut Statement) -> Result<(), String> {
+        match stmt {
+            Statement::CreateTable {
+                ref mut or_replace, ..
+            } => {
+                *or_replace = true;
+            }
+            Statement::CreateView {
+                ref mut or_replace, ..
+            } => {
+                *or_replace = true;
+            }
+            _ => unreachable!("Only create table and create view supported"),
+        };
 
         let query = self.build_query(&format!("{}", stmt));
         self.run_query(query).map_err(|x| x.get_message())?;

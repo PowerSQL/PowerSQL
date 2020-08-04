@@ -346,7 +346,7 @@ pub async fn main() -> Result<(), String> {
             }
         }
     }
-    let asts = load_asts(&models)?;
+    let mut asts = load_asts(&models)?;
     let dependencies: HashMap<String, Vec<String>> = get_dependencies(&asts);
     detect_cycles(&dependencies)?;
 
@@ -414,7 +414,7 @@ pub async fn main() -> Result<(), String> {
 
             while let Some(m) = nodes.pop() {
                 println!("Executing {}", m);
-                executor.execute(&m, asts.get(&m).unwrap()).await?;
+                executor.execute(&m, asts.get_mut(&m).unwrap()).await?;
                 println!("Ready {}", m);
                 println!("Graph {:?}", graph);
 
