@@ -11,6 +11,8 @@ use sqlparser::parser::Parser;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
+use std::fs::File;
+use std::io::prelude::*;
 use structopt::StructOpt;
 use walkdir::WalkDir;
 
@@ -32,7 +34,7 @@ enum Command {
         #[structopt(long)]
         fail_fast: bool,
     },
-    //Docs,
+    Docs,
 }
 
 #[derive(Debug, StructOpt)]
@@ -344,7 +346,7 @@ pub async fn main() -> Result<(), String> {
             }
         }
     }
-    let asts = load_asts(&models)?;
+    let mut asts = load_asts(&models)?;
     let dependencies: HashMap<String, Vec<String>> = get_dependencies(&asts);
     detect_cycles(&dependencies)?;
 
@@ -412,7 +414,7 @@ pub async fn main() -> Result<(), String> {
 
             while let Some(m) = nodes.pop() {
                 println!("Executing {}", m);
-                executor.execute(&m, asts.get(&m).unwrap()).await?;
+                executor.execute(&m, asts.get_mut(&m).unwrap()).await?;
                 println!("Ready {}", m);
                 println!("Graph {:?}", graph);
 
@@ -426,14 +428,20 @@ pub async fn main() -> Result<(), String> {
                 }
             }
         }
-        // Command::Docs => {
-        //     let arrows: Vec<String> = dependencies
-        //         .iter()
-        //         .flat_map(|(x, y)| y.iter().map(move |z| format!("{z} -> {x}", x = x, z = z)))
-        //         .collect();
+        Command::Docs => {
+            let arrows: Vec<String> = dependencies
+                .iter()
+                .flat_map(|(x, y)| y.iter().map(move |z| format!("{z} -> {x}", x = x, z = z)))
+                .collect();
+            let mut graph = build_graph(&dependencies)?;
 
-        //     print!("{:?}", arrows);
-        // }
+            std::fs::create_dir("docs");
+            let mut f =
+                File::create("docs/docs.md").map_err(|x| "Could not create docs/docs.md")?;
+            for (x, deps) in graph {
+                f.write_fmt(format_args!("#{}\n", x));
+            }
+        }
         Command::Test { fail_fast } => {
             let mut exit_code = 0;
             let test_models = find_test_files(config.project.tests);
