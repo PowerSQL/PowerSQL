@@ -11,6 +11,9 @@
 <a href="https://gitter.im/PowerSQL/community">
 <img src="https://badges.gitter.im/PowerSQL/community.svg" />
 </a>
+<a href="https://powersql.github.io">
+<img src="https://img.shields.io/badge/Docs-PowerSQL-blue" />
+</a>
 </div>
 
 PowerSQL, **the** data transformation tool for data {engineers, scientists, analysts}.
