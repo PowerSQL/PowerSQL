@@ -37,6 +37,11 @@ enum Command {
     Docs,
 }
 
+struct Test {
+    condition: Expr,
+    message: String,
+}
+
 #[derive(Debug, StructOpt)]
 #[structopt(name = "PowerSQL", about = "The data tool")]
 struct Opt {
@@ -139,7 +144,7 @@ fn get_refs_expr(expr: &Expr, vec: &mut Vec<String>) {
 fn load_asts(models: &[String]) -> Result<HashMap<String, Statement>, String> {
     let mut res = HashMap::new();
     for path in models.iter() {
-        let sql = fs::read_to_string(path).unwrap();
+        let sql = fs::read_to_string(path).map_err(|_x| format!("Error while reading {}", path))?;
         let statements = Parser::parse_sql(&PowerSqlDialect {}, &sql)
             .map_err(|err| format!("Parse Error in {}: {}", path, err))?;
 
@@ -159,21 +164,23 @@ fn load_asts(models: &[String]) -> Result<HashMap<String, Statement>, String> {
     Ok(res)
 }
 
-fn load_tests(models: &[String]) -> Result<Vec<Statement>, String> {
+fn load_tests(models: &[String]) -> Result<Vec<Test>, String> {
     let mut res = vec![];
     for path in models.iter() {
-        let sql = fs::read_to_string(path).unwrap();
+        let sql = fs::read_to_string(path).map_err(|_x| format!("Error while reading {}", path))?;
 
         let statements = Parser::parse_sql(&PowerSqlDialect {}, &sql)
             .map_err(|err| format!("Parse Error in {}: {}", path, err))?;
 
         for statement in statements {
             let query = match statement {
-                assert
-                @
                 Statement::Assert {
-                    message: Some(_), ..
-                } => assert,
+                    message: Some(Expr::Value(Value::SingleQuotedString(msg))),
+                    condition,
+                } => Test {
+                    condition,
+                    message: msg,
+                },
                 _ => unimplemented!("Only assert statements are supported in test files"),
             };
             res.push(query)
@@ -199,12 +206,6 @@ fn get_refs_statement(statement: &Statement, vec: &mut Vec<String>) {
         Statement::CreateTable {
             query: Some(query), ..
         } => get_refs(query, vec),
-        // Statement::Query(query) => {
-        //     get_refs(query, vec);
-        // }
-        // Statement::Assert { condition, .. } => {
-        //     get_refs_expr(condition, vec);
-        // }
         _ => unreachable!("Expected view or table in fn get_refs_statement"),
     }
 }
@@ -314,13 +315,6 @@ async fn get_executor() -> Result<execute::Postgres, String> {
     execute::Postgres::new().await
 }
 
-fn expr_to_message(expr: &Expr) -> &str {
-    match expr {
-        Expr::Value(Value::SingleQuotedString(s)) => s.as_str(),
-        _ => "",
-    }
-}
-
 #[tokio::main]
 pub async fn main() -> Result<(), String> {
     let opt = Opt::from_args();
@@ -381,21 +375,12 @@ pub async fn main() -> Result<(), String> {
             let test_models = find_test_files(config.project.tests);
             let tests = load_tests(&test_models)?;
 
-            for test in tests {
-                match test {
-                    Statement::Assert {
-                        condition,
-                        message: Some(message),
-                    } => {
-                        let ty =
-                            types::expr_type(&condition, &HashMap::new(), ty_env.clone(), true)?;
+            for Test { condition, .. } in tests {
+                let ty = types::expr_type(&condition, &HashMap::new(), ty_env.clone(), true)?;
 
-                        match ty {
-                            types::BaseType::Any | types::BaseType::Boolean => {}
-                            _ => return Err(format!("Expected boolean in test, got {:?}", ty)),
-                        }
-                    }
-                    _ => unreachable!("Only assert supported in tests"),
+                match ty {
+                    types::BaseType::Any | types::BaseType::Boolean => {}
+                    _ => return Err(format!("Expected boolean in test, got {:?}", ty)),
                 }
             }
         }
@@ -433,11 +418,11 @@ pub async fn main() -> Result<(), String> {
                 .iter()
                 .flat_map(|(x, y)| y.iter().map(move |z| format!("{z} -> {x}", x = x, z = z)))
                 .collect();
-            let mut graph = build_graph(&dependencies)?;
+            let graph = build_graph(&dependencies)?;
 
             std::fs::create_dir("docs");
             let mut f =
-                File::create("docs/docs.md").map_err(|x| "Could not create docs/docs.md")?;
+                File::create("docs/docs.md").map_err(|_x| "Could not create docs/docs.md")?;
             for (x, deps) in graph {
                 f.write_fmt(format_args!("#{}\n", x));
             }
@@ -448,29 +433,21 @@ pub async fn main() -> Result<(), String> {
             let tests = load_tests(&test_models)?;
             let mut executor = get_executor().await?;
 
-            for test in tests.iter() {
-                match test {
-                    Statement::Assert {
-                        condition,
-                        message: Some(message),
-                    } => {
-                        print!("{}", expr_to_message(message));
+            for Test { condition, message } in tests.iter() {
+                print!("{}", message);
 
-                        let query = format!("SELECT ({}) AS condition", condition);
-                        let succeeded = executor.query_bool(&query).await?;
+                let query = format!("SELECT ({}) AS condition", condition);
+                let succeeded = executor.query_bool(&query).await?;
 
-                        if succeeded {
-                            println!("...OK")
-                        } else {
-                            if fail_fast {
-                                std::process::exit(1);
-                            }
-                            exit_code = 1;
-
-                            println!("...ERROR")
-                        }
+                if succeeded {
+                    println!("...OK")
+                } else {
+                    if fail_fast {
+                        std::process::exit(1);
                     }
-                    _ => unreachable!("Only assert supported in tests"),
+                    exit_code = 1;
+
+                    println!("...ERROR")
                 }
             }
             std::process::exit(exit_code);
