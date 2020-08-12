@@ -47,7 +47,7 @@ fn map_data_type(data_type: &DataType) -> BaseType {
 pub fn expr_type(
     expr: &Expr,
     local_type_env: &HashMap<String, BaseType>,
-    mut type_env: im::HashMap<String, TableType>,
+    type_env: im::HashMap<String, TableType>,
     open: bool,
 ) -> Result<BaseType, String> {
     match expr {
