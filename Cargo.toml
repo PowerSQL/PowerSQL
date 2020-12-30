@@ -30,7 +30,7 @@ tokio-postgres = { version = "0.5", optional=true}
 
 # BigQuery
 google-bigquery2 = {version = "1", optional=true}
-hyper = {version = "^0.10", optional=true}
+hyper = {version = "^0.14", optional=true}
 hyper-rustls = {version="^0.6", optional=true}
 serde_json = {version="^1.0", optional=true}
 yup-oauth2 = {version = "^1.0", optional=true}
