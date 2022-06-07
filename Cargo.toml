@@ -25,7 +25,7 @@ async-trait = "0.1"
 
 # PostgreSQL
 
-tokio = { version = "0.2", features = ["macros"] }
+tokio = { version = "1.19", features = ["macros"] }
 tokio-postgres = { version = "0.5", optional=true}
 
 # BigQuery
